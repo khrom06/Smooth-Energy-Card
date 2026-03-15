@@ -1,12 +1,178 @@
 /**
- * Smooth Energy Card v1.5.4
+ * Smooth Energy Card v1.6.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.5.4
+ * @version 1.6.0
  */
 
-const VERSION = '1.5.4';
+const VERSION = '1.6.0';
+
+// ─── Translations ──────────────────────────────────────────────────────────────
+const TRANSLATIONS = {
+  en: {
+    solar:'SOLAR', house:'HOUSE', export:'EXPORT', import:'IMPORT',
+    v2c:'V2C', batt:'BATT', idle:'IDLE', v2g:'▲ V2G',
+    solar_today:'Solar Today', forecast:'Forecast ☀️',
+    exporting:'Exporting', importing:'Importing', est_cost:'Est. Cost', earning:'🌿 Earning',
+    ev_section:'Electric Vehicles & Charger', dev_section:'Device Consumption',
+    today_summary:"Today's Summary",
+    charging:'Charging…', charger_idle:'Idle', discharging:'↑ Discharging to home',
+    cost_free:'☀️ FREE', solar_100:'100% solar power', grid_only:'⚡ Grid only',
+    charging_via:'Charging via V2C',
+    cost_today:'Cost Today', solar_savings:'Solar Savings', revenue:'Revenue', exported_lbl:'Exported',
+    solar_powered:'Solar powered today', live_suff:'Live self-sufficiency',
+    bleu_note:'Low tariff day', blanc_note:'Standard tariff day',
+    rouge_note:'⚠️ Peak tariff — avoid heavy consumption',
+    tomorrow:'Tomorrow', surplus:'☀️ Solar surplus available',
+    fc_today:'Today', fc_tomorrow:'Tomorrow',
+    subtitle:'Live energy monitor',
+    bat_label:'Battery', range_label:'Range', target_lbl:'Target SoC', eta_lbl:'ETA',
+    copied:'✓ Copied to clipboard!', clip_err:'⚠️ Clipboard not available',
+    reco_free: w => `FREE solar charging — ${w} from sun`,
+    reco_surplus: w => `${w} solar surplus — start charging for free`,
+    reco_rouge: p => `ROUGE day${p} — avoid heavy consumption today`,
+    reco_tmr_rouge: 'Tomorrow is ROUGE — charge today while tariff is low',
+    reco_bleu: p => `BLEU tariff day${p} — good time to charge`,
+    reco_cheap: p => `Low tariff now (${p}) — good time to charge`,
+    reco_expensive: p => `High tariff now (${p}) — wait for off-peak`,
+    tip_range: (km, h) => `${km} km range\n≈ ${h} h driving`,
+    tip_bat: (name, bat, rng, tgt, eta) => [name,`Battery: ${bat}%`,`Range: ${rng} km`,tgt?`Target SoC: ${tgt}%`:'',eta?`ETA: ${eta}`:''].filter(Boolean).join('\n'),
+  },
+  fr: {
+    solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
+    v2c:'V2C', batt:'BATT', idle:'INACTIF', v2g:'▲ V2G',
+    solar_today:"Solaire aujourd'hui", forecast:'Prévision ☀️',
+    exporting:'Injection', importing:'Soutirage', est_cost:'Coût estimé', earning:'🌿 Revenu',
+    ev_section:'Véhicules & Chargeur', dev_section:'Consommation appareils',
+    today_summary:'Résumé du jour',
+    charging:'Charge en cours…', charger_idle:'Inactif', discharging:'↑ Décharge vers maison',
+    cost_free:'☀️ GRATUIT', solar_100:'100% énergie solaire', grid_only:'⚡ Réseau uniquement',
+    charging_via:'Charge via V2C',
+    cost_today:"Coût aujourd'hui", solar_savings:'Économies solaires', revenue:'Revenu', exported_lbl:'Injecté',
+    solar_powered:'Alimenté par le solaire', live_suff:'Autonomie en direct',
+    bleu_note:'Jour à faible tarif', blanc_note:'Jour à tarif standard',
+    rouge_note:'⚠️ Tarif de pointe — éviter les fortes conso.',
+    tomorrow:'Demain', surplus:'☀️ Surplus solaire disponible',
+    fc_today:"Aujourd'hui", fc_tomorrow:'Demain',
+    subtitle:'Monitoring énergie en direct',
+    bat_label:'Batterie', range_label:'Autonomie', target_lbl:'SoC cible', eta_lbl:'Durée',
+    copied:'✓ Copié dans le presse-papier !', clip_err:'⚠️ Presse-papier non disponible',
+    reco_free: w => `Charge GRATUITE solaire — ${w} du soleil`,
+    reco_surplus: w => `${w} surplus solaire — chargez gratuitement`,
+    reco_rouge: p => `Jour ROUGE${p} — évitez la consommation aujourd'hui`,
+    reco_tmr_rouge: "Demain est ROUGE — chargez aujourd'hui pendant que le tarif est bas",
+    reco_bleu: p => `Jour BLEU${p} — bon moment pour charger`,
+    reco_cheap: p => `Tarif bas (${p}) — bon moment pour charger`,
+    reco_expensive: p => `Tarif élevé (${p}) — attendre les heures creuses`,
+    tip_range: (km, h) => `${km} km d'autonomie\n≈ ${h} h de conduite`,
+    tip_bat: (name, bat, rng, tgt, eta) => [name,`Batterie: ${bat}%`,`Autonomie: ${rng} km`,tgt?`SoC cible: ${tgt}%`:'',eta?`Durée: ${eta}`:''].filter(Boolean).join('\n'),
+  },
+  es: {
+    solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
+    v2c:'V2C', batt:'BATERÍA', idle:'INACTIVO', v2g:'▲ V2G',
+    solar_today:'Solar Hoy', forecast:'Previsión ☀️',
+    exporting:'Exportando', importing:'Importando', est_cost:'Coste est.', earning:'🌿 Ganando',
+    ev_section:'Vehículos & Cargador', dev_section:'Consumo de dispositivos',
+    today_summary:'Resumen de hoy',
+    charging:'Cargando…', charger_idle:'Inactivo', discharging:'↑ Descargando a casa',
+    cost_free:'☀️ GRATIS', solar_100:'100% energía solar', grid_only:'⚡ Solo red',
+    charging_via:'Cargando vía V2C',
+    cost_today:'Coste hoy', solar_savings:'Ahorros solares', revenue:'Ingresos', exported_lbl:'Exportado',
+    solar_powered:'Alimentado por solar hoy', live_suff:'Autosuficiencia en vivo',
+    bleu_note:'Día tarifa baja', blanc_note:'Día tarifa estándar',
+    rouge_note:'⚠️ Tarifa punta — evitar consumo alto',
+    tomorrow:'Mañana', surplus:'☀️ Excedente solar disponible',
+    fc_today:'Hoy', fc_tomorrow:'Mañana',
+    subtitle:'Monitor energía en tiempo real',
+    bat_label:'Batería', range_label:'Autonomía', target_lbl:'SoC objetivo', eta_lbl:'ETA',
+    copied:'✓ ¡Copiado al portapapeles!', clip_err:'⚠️ Portapapeles no disponible',
+    reco_free: w => `Carga GRATIS solar — ${w} del sol`,
+    reco_surplus: w => `${w} excedente solar — carga gratis`,
+    reco_rouge: p => `Día ROUGE${p} — evitar consumo hoy`,
+    reco_tmr_rouge: 'Mañana es ROUGE — carga hoy con tarifa baja',
+    reco_bleu: p => `Día BLEU${p} — buen momento para cargar`,
+    reco_cheap: p => `Tarifa baja (${p}) — buen momento para cargar`,
+    reco_expensive: p => `Tarifa alta (${p}) — esperar horas valle`,
+    tip_range: (km, h) => `${km} km de autonomía\n≈ ${h} h conduciendo`,
+    tip_bat: (name, bat, rng, tgt, eta) => [name,`Batería: ${bat}%`,`Autonomía: ${rng} km`,tgt?`SoC objetivo: ${tgt}%`:'',eta?`ETA: ${eta}`:''].filter(Boolean).join('\n'),
+  },
+  zh: {
+    solar:'太阳能', house:'用电', export:'并网', import:'用网',
+    v2c:'充电桩', batt:'电池', idle:'空闲', v2g:'▲ V2G',
+    solar_today:'今日发电', forecast:'预报 ☀️',
+    exporting:'输出电网', importing:'从电网购', est_cost:'预估费用', earning:'🌿 收益',
+    ev_section:'电动汽车 & 充电桩', dev_section:'设备用电',
+    today_summary:'今日汇总',
+    charging:'充电中…', charger_idle:'空闲', discharging:'↑ 向家放电',
+    cost_free:'☀️ 免费', solar_100:'100% 太阳能', grid_only:'⚡ 仅电网',
+    charging_via:'通过V2C充电',
+    cost_today:'今日费用', solar_savings:'太阳能节省', revenue:'售电收益', exported_lbl:'已输出',
+    solar_powered:'今日太阳能占比', live_suff:'实时自给率',
+    bleu_note:'低价日', blanc_note:'标准价日',
+    rouge_note:'⚠️ 高峰价日 — 减少用电',
+    tomorrow:'明天', surplus:'☀️ 太阳能盈余',
+    fc_today:'今天', fc_tomorrow:'明天',
+    subtitle:'实时能源监控',
+    bat_label:'电池', range_label:'续航', target_lbl:'目标SoC', eta_lbl:'预计',
+    copied:'✓ 已复制到剪贴板！', clip_err:'⚠️ 剪贴板不可用',
+    reco_free: w => `太阳能免费充电 — ${w}`,
+    reco_surplus: w => `${w} 太阳能盈余 — 免费充电`,
+    reco_rouge: p => `高峰价日${p} — 今日避免大量用电`,
+    reco_tmr_rouge: '明天高峰价 — 趁今天低价充电',
+    reco_bleu: p => `低价日${p} — 适合充电`,
+    reco_cheap: p => `当前低电价 (${p}) — 适合充电`,
+    reco_expensive: p => `当前高电价 (${p}) — 等待低谷时段`,
+    tip_range: (km, h) => `续航 ${km} km\n约 ${h} 小时行驶`,
+    tip_bat: (name, bat, rng, tgt, eta) => [name,`电池: ${bat}%`,`续航: ${rng} km`,tgt?`目标SoC: ${tgt}%`:'',eta?`预计: ${eta}`:''].filter(Boolean).join('\n'),
+  },
+  ja: {
+    solar:'ソーラー', house:'消費', export:'売電', import:'買電',
+    v2c:'充電器', batt:'蓄電池', idle:'待機中', v2g:'▲ V2G',
+    solar_today:'本日発電量', forecast:'予報 ☀️',
+    exporting:'売電中', importing:'買電中', est_cost:'推定費用', earning:'🌿 収益',
+    ev_section:'電気自動車 & 充電器', dev_section:'機器消費電力',
+    today_summary:'本日のサマリー',
+    charging:'充電中…', charger_idle:'待機中', discharging:'↑ 家庭へ放電',
+    cost_free:'☀️ 無料', solar_100:'100% 太陽光', grid_only:'⚡ 系統電力のみ',
+    charging_via:'V2C経由で充電中',
+    cost_today:'本日のコスト', solar_savings:'太陽光節約額', revenue:'売電収益', exported_lbl:'売電量',
+    solar_powered:'本日の太陽光自給率', live_suff:'リアルタイム自給率',
+    bleu_note:'低料金日', blanc_note:'標準料金日',
+    rouge_note:'⚠️ ピーク料金日 — 大量消費を避けてください',
+    tomorrow:'明日', surplus:'☀️ 太陽光余剰電力あり',
+    fc_today:'今日', fc_tomorrow:'明日',
+    subtitle:'リアルタイムエネルギー監視',
+    bat_label:'バッテリー', range_label:'航続距離', target_lbl:'目標SoC', eta_lbl:'所要時間',
+    copied:'✓ クリップボードにコピーしました！', clip_err:'⚠️ クリップボードが利用できません',
+    reco_free: w => `太陽光で無料充電中 — ${w}`,
+    reco_surplus: w => `${w} 余剰電力あり — 無料充電のチャンス`,
+    reco_rouge: p => `ピーク料金日${p} — 今日は消費を控えてください`,
+    reco_tmr_rouge: '明日はピーク料金日 — 今日のうちに充電を',
+    reco_bleu: p => `低料金日${p} — 充電に最適`,
+    reco_cheap: p => `現在低料金 (${p}) — 充電に最適`,
+    reco_expensive: p => `現在高料金 (${p}) — オフピーク時間まで待つ`,
+    tip_range: (km, h) => `航続距離 ${km} km\n約 ${h} 時間走行`,
+    tip_bat: (name, bat, rng, tgt, eta) => [name,`バッテリー: ${bat}%`,`航続距離: ${rng} km`,tgt?`目標SoC: ${tgt}%`:'',eta?`所要時間: ${eta}`:''].filter(Boolean).join('\n'),
+  },
+};
+
+function getLang(hass, config) {
+  const cfg = config?.language;
+  if (cfg && cfg !== 'auto' && TRANSLATIONS[cfg]) return cfg;
+  const hl = (hass?.language || 'en').toLowerCase();
+  if (hl.startsWith('fr')) return 'fr';
+  if (hl.startsWith('es')) return 'es';
+  if (hl.startsWith('zh')) return 'zh';
+  if (hl.startsWith('ja')) return 'ja';
+  return 'en';
+}
+function tr(hass, config, key, ...args) {
+  const lang = getLang(hass, config);
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const val = t[key] ?? TRANSLATIONS.en[key] ?? key;
+  return typeof val === 'function' ? val(...args) : val;
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -76,7 +242,7 @@ function calcEta(hass, batterySoc, chargingPowerEntity, chargingRateEntity, targ
   return null;
 }
 
-function getChargingReco(d, c) {
+function getChargingReco(d, c, t) {
   if (!c.evs || c.evs.length === 0) return null;
 
   const normalize = s => {
@@ -91,42 +257,42 @@ function getChargingReco(d, c) {
 
   // Already charging free from solar
   if (d.chargerActive && d.solarFreeW > 0 && d.gridChargeW < 50) {
-    return { icon:'☀️', text:`FREE solar charging — ${fmtW(d.solarFreeW)} from sun`, cls:'reco-free' };
+    return { icon:'☀️', text: t.reco_free(fmtW(d.solarFreeW)), cls:'reco-free' };
   }
 
   // Solar surplus available now, not charging
   const surplusW = Math.max(0, d.solarW - d.houseW - (d.battCharging ? d.battW : 0));
   if (!d.chargerActive && surplusW > 800) {
-    return { icon:'💡', text:`${fmtW(surplusW)} solar surplus — start charging for free`, cls:'reco-good' };
+    return { icon:'💡', text: t.reco_surplus(fmtW(surplusW)), cls:'reco-good' };
   }
 
   // ROUGE day — avoid
   if (todayColor === 'red') {
     const priceStr = d.price != null ? ` (${d.price.toFixed(3)} €/kWh)` : '';
-    return { icon:'⚠️', text:`ROUGE day${priceStr} — avoid heavy consumption today`, cls:'reco-warn' };
+    return { icon:'⚠️', text: t.reco_rouge(priceStr), cls:'reco-warn' };
   }
 
   // Tomorrow is ROUGE — charge today!
   if (tomorrowColor === 'red' && todayColor !== 'red') {
-    return { icon:'⏰', text:`Tomorrow is ROUGE — charge today while tariff is low`, cls:'reco-info' };
+    return { icon:'⏰', text: t.reco_tmr_rouge, cls:'reco-info' };
   }
 
   // BLEU day and not charging — good opportunity
   if (todayColor === 'blue' && !d.chargerActive) {
     const priceStr = d.price != null ? ` at ${d.price.toFixed(3)} €/kWh` : '';
-    return { icon:'💙', text:`BLEU tariff day${priceStr} — good time to charge`, cls:'reco-good' };
+    return { icon:'💙', text: t.reco_bleu(priceStr), cls:'reco-good' };
   }
 
   // Price alert — very cheap
   const priceAlertLow = parseFloat(c.price_alert_low);
   if (!isNaN(priceAlertLow) && d.price != null && d.price <= priceAlertLow) {
-    return { icon:'💚', text:`Low tariff now (${d.price.toFixed(3)} €/kWh) — good time to charge`, cls:'reco-good' };
+    return { icon:'💚', text: t.reco_cheap(d.price.toFixed(3)+' €/kWh'), cls:'reco-good' };
   }
 
   // Price alert — very expensive
   const priceAlertHigh = parseFloat(c.price_alert_high);
   if (!isNaN(priceAlertHigh) && d.price != null && d.price >= priceAlertHigh) {
-    return { icon:'🔴', text:`High tariff now (${d.price.toFixed(3)} €/kWh) — wait for off-peak`, cls:'reco-warn' };
+    return { icon:'🔴', text: t.reco_expensive(d.price.toFixed(3)+' €/kWh'), cls:'reco-warn' };
   }
 
   return null;
@@ -514,6 +680,7 @@ class SmoothEnergyCard extends HTMLElement {
       theme: 'dark',
       battery_power: '',
       battery_soc: '',
+      language: 'auto',   // 'auto' | 'en' | 'fr' | 'es' | 'zh' | 'ja'
       devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
@@ -553,6 +720,7 @@ class SmoothEnergyCard extends HTMLElement {
     }
   }
   getCardSize() { return 8; }
+  _t(key, ...args) { return tr(this._hass, this._config, key, ...args); }
   disconnectedCallback() { this._clearParticles(); }
 
   _data() {
@@ -690,7 +858,7 @@ class SmoothEnergyCard extends HTMLElement {
     // Surplus banner
     const surplusWrap = card.querySelector('[data-uid="surplus-wrap"]');
     if (surplusWrap) surplusWrap.innerHTML = d.surplusW > 50
-      ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : '';
+      ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : '';
 
     // Self-sufficiency gauge
     const suffWrap = card.querySelector('[data-uid="suff-wrap"]');
@@ -751,10 +919,10 @@ class SmoothEnergyCard extends HTMLElement {
 
       const content = chargerCard.querySelector('[data-uid="charger-content"]');
       if (content) content.innerHTML = d.v2gActive
-        ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">↑ Discharging to home</div>`
+        ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">${this._t('discharging')}</div>`
         : (active
-          ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
-          : `<div class="charger-idle">Idle</div>`);
+          ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">${this._t('charging')}</div>${this._buildChargerCostDisplay(d)}`
+          : `<div class="charger-idle">${this._t('charger_idle')}</div>`);
       const nameEl = chargerCard.querySelector('.ev-name');
       if (nameEl) nameEl.textContent = d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger';
     }
@@ -821,7 +989,7 @@ class SmoothEnergyCard extends HTMLElement {
       // Range
       const rangeEl = evCard.querySelector('.ev-range');
       if (rangeEl) {
-        rangeEl.setAttribute('data-tip', `${ev.rng} km range\n≈ ${Math.round(ev.rng / 6)} h driving`);
+        rangeEl.setAttribute('data-tip', this._t('tip_range', ev.rng, Math.round(ev.rng / 6)));
         rangeEl.innerHTML = `${ev.rng} <em>km</em>`;
       }
 
@@ -843,12 +1011,8 @@ class SmoothEnergyCard extends HTMLElement {
       // Battery ring tooltip
       const batRing = evCard.querySelector('.bat-ring');
       if (batRing) {
-        const batTip = [
-          ev.name, `Battery: ${ev.bat}%`, `Range: ${ev.rng} km`,
-          ev.targetSoc != null ? `Target SoC: ${ev.targetSoc}%` : '',
-          ev.isCharging && ev.eta ? `ETA: ${ev.eta}` : '',
-          ev.isCharging ? 'Charging via V2C' : '',
-        ].filter(Boolean).join('\n');
+        const batTip = this._t('tip_bat', ev.name, ev.bat, ev.rng, ev.targetSoc, ev.isCharging && ev.eta ? ev.eta : null)
+          + (ev.isCharging ? '\n' + this._t('charging_via') : '');
         batRing.setAttribute('data-tip', batTip);
       }
     });
@@ -861,16 +1025,16 @@ class SmoothEnergyCard extends HTMLElement {
       costClass = d.costH < 0 ? 'st-earn' : 'st-cost';
     }
     return `
-      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">Solar Today</div><div class="spark" data-uid="spark-solar"></div></div>
-      <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">Forecast ☀️</div></div>
-      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?'Exporting':'Importing'}</div><div class="spark" data-uid="spark-grid"></div></div>
-      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?'🌿 Earning':costStr}</div><div class="sl">Est. Cost</div></div>`;
+      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">${this._t('solar_today')}</div><div class="spark" data-uid="spark-solar"></div></div>
+      <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">${this._t('forecast')}</div></div>
+      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?this._t('exporting'):this._t('importing')}</div><div class="spark" data-uid="spark-grid"></div></div>
+      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?this._t('earning'):costStr}</div><div class="sl">${this._t('est_cost')}</div></div>`;
   }
 
   _buildForecast(d) {
     return `
-      <div class="fc-item"><div class="fc-dot" style="background:#fbbf24"></div><span>Today: ${fmtKwh(d.fcToday)}</span></div>
-      <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>Tomorrow: ${fmtKwh(d.fcTomorrow)}</span></div>`;
+      <div class="fc-item"><div class="fc-dot" style="background:#fbbf24"></div><span>${this._t('fc_today')}: ${fmtKwh(d.fcToday)}</span></div>
+      <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>${this._t('fc_tomorrow')}: ${fmtKwh(d.fcTomorrow)}</span></div>`;
   }
 
   _buildTempoBanner(d) {
@@ -886,9 +1050,9 @@ class SmoothEnergyCard extends HTMLElement {
     const tomorrowColor = d.tempoTomorrow ? normalize(d.tempoTomorrow) : null;
     if (!todayColor) return '';
     const labels = { blue:'BLEU', white:'BLANC', red:'ROUGE' };
-    const notes  = { blue:'Low tariff day', white:'Standard tariff day', red:'⚠️ Peak tariff — avoid heavy consumption' };
+    const notes  = { blue:this._t('bleu_note'), white:this._t('blanc_note'), red:this._t('rouge_note') };
     const tomorrowHtml = tomorrowColor
-      ? `<span class="tempo-tomorrow">Tomorrow: <span class="tempo-pill ${tomorrowColor}">${labels[tomorrowColor]}</span></span>` : '';
+      ? `<span class="tempo-tomorrow">${this._t('tomorrow')}: <span class="tempo-pill ${tomorrowColor}">${labels[tomorrowColor]}</span></span>` : '';
     return `
       <div class="tempo-banner ${todayColor}">
         <span class="tempo-pill ${todayColor}">${labels[todayColor]}</span>
@@ -903,19 +1067,19 @@ class SmoothEnergyCard extends HTMLElement {
     const saveTip    = `Solar self-consumed: ${d.selfConsumedKwh != null ? round1(d.selfConsumedKwh)+' kWh' : '—'}\nAvoided grid cost`;
     const exportTip  = `Grid export: ${d.exportKwhDay != null ? d.exportKwhDay.toFixed(2)+' kWh' : '—'}${d.revenueToday != null ? '\nRevenue at feed-in rate' : ''}`;
     return `
-      <div class="section-title">Today's Summary</div>
+      <div class="section-title">${this._t('today_summary')}</div>
       <div class="daily-summary">
         <div class="ds-tile ds-cost" data-tip="${importTip}">
           <div class="dv">${d.costToday != null ? d.costToday.toFixed(2)+' €' : '—'}</div>
-          <div class="dl">Cost Today</div>
+          <div class="dl">${this._t('cost_today')}</div>
         </div>
         <div class="ds-tile ds-save" data-tip="${saveTip}">
           <div class="dv">${d.savingsToday != null ? d.savingsToday.toFixed(2)+' €' : '—'}</div>
-          <div class="dl">Solar Savings</div>
+          <div class="dl">${this._t('solar_savings')}</div>
         </div>
         <div class="ds-tile ds-rev" data-tip="${exportTip}">
           <div class="dv">${d.revenueToday != null ? d.revenueToday.toFixed(2)+' €' : (d.exportKwhDay != null ? round1(d.exportKwhDay)+' kWh ↑' : '—')}</div>
-          <div class="dl">${d.revenueToday != null ? 'Revenue' : 'Exported'}</div>
+          <div class="dl">${d.revenueToday != null ? this._t('revenue') : this._t('exported_lbl')}</div>
         </div>
       </div>`;
   }
@@ -935,20 +1099,21 @@ class SmoothEnergyCard extends HTMLElement {
     ].filter(Boolean).join('\n');
     let out = '';
     if (isFree) {
-      out = `<div class="cost-free" data-tip="${tipLines}">☀️ FREE</div><div class="cost-mixed">100% solar power</div>`;
+      out = `<div class="cost-free" data-tip="${tipLines}">${this._t('cost_free')}</div><div class="cost-mixed">${this._t('solar_100')}</div>`;
     } else if (isMixed) {
       const est = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '');
       out = `<div class="cost-paid" data-tip="${tipLines}">${est}</div><div class="cost-mixed">☀️ ${solarPct}% free · ⚡ ${100-solarPct}% grid</div>`;
     } else {
       const est = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '—');
-      out = `<div class="cost-paid" data-tip="${tipLines}">${est}</div><div class="cost-mixed">⚡ Grid only</div>`;
+      out = `<div class="cost-paid" data-tip="${tipLines}">${est}</div><div class="cost-mixed">${this._t('grid_only')}</div>`;
     }
     if (d.v2cSessionKwh > 0) out += `<div style="font-size:0.58em;color:#4a3a7a;margin-top:2px">Session: ${fmtKwh(d.v2cSessionKwh)}</div>`;
     return out;
   }
 
   _buildChargingReco(d) {
-    const reco = getChargingReco(d, this._config);
+    const t = TRANSLATIONS[getLang(this._hass, this._config)] || TRANSLATIONS.en;
+    const reco = getChargingReco(d, this._config, t);
     if (!reco) return '';
     return `<div class="charging-reco ${reco.cls}"><span class="reco-icon">${reco.icon}</span><span class="reco-text">${reco.text}</span></div>`;
   }
@@ -957,7 +1122,7 @@ class SmoothEnergyCard extends HTMLElement {
     if (d.solarW <= 0 && d.daySuffPct == null) return '';
 
     const pct = d.daySuffPct != null ? d.daySuffPct : d.liveSuffPct;
-    const label = d.daySuffPct != null ? 'Solar powered today' : 'Live self-sufficiency';
+    const label = d.daySuffPct != null ? this._t('solar_powered') : this._t('live_suff');
     const col = pct >= 70 ? '#34d399' : pct >= 30 ? '#fbbf24' : '#f87171';
 
     const R = 36, cx = 48, cy = 48, sw = 8;
@@ -1011,7 +1176,7 @@ class SmoothEnergyCard extends HTMLElement {
       <div class="header">
         <div class="title-block">
           <div class="title">${c.title || 'Energy'}</div>
-          <div class="subtitle">⚡ Live energy monitor · v${VERSION}</div>
+          <div class="subtitle">⚡ ${this._t('subtitle')} · v${VERSION}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
@@ -1020,19 +1185,19 @@ class SmoothEnergyCard extends HTMLElement {
       </div>
       ${this._buildTempoBanner(d)}
       <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
-      <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
+      <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
       <div class="ev-section">
-        <div class="section-title">Electric Vehicles &amp; Charger</div>
+        <div class="section-title">${this._t('ev_section')}</div>
         <div class="ev-grid" data-uid="ev-grid">
           ${this._buildCharger(d)}
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
       </div>
-      <div class="section-title">Device Consumption</div>
+      <div class="section-title">${this._t('dev_section')}</div>
       <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>
       <div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>`;
   }
@@ -1134,29 +1299,29 @@ class SmoothEnergyCard extends HTMLElement {
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}">☀️</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
-      <text x="${sP.x}" y="${sP.y+22}" class="n-name">SOLAR</text>
+      <text x="${sP.x}" y="${sP.y+22}" class="n-name">${this._t('solar')}</text>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
       <text x="${hP.x}" y="${hP.y+7}" class="n-power">${fmtW(d.houseW)}</text>
-      <text x="${hP.x}" y="${hP.y+22}" class="n-name">HOUSE</text>
+      <text x="${hP.x}" y="${hP.y+22}" class="n-name">${this._t('house')}</text>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
       <text x="${gP.x}" y="${gP.y+7}" class="n-power">${fmtW(Math.abs(d.gridW))}</text>
-      <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?'EXPORT':'IMPORT'}</text>
+      <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?this._t('export'):this._t('import')}</text>
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
       <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
       ${d.v2gActive
         ? `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#34d399" class="v2c-bolt-active">⚡</text>
            <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.v2cW))}</text>
-           <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">▲ V2G</text>`
+           <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">${this._t('v2g')}</text>`
         : `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
            ${vOn
              ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(d.v2cW)}</text>
                 ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">☀️${vSolarPct}% free</text>`:''}`
-             : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" opacity="0.35" style="font-size:8px">V2C</text>`}
+             : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" opacity="0.35" style="font-size:8px">${this._t('v2c')}</text>`}
         `
       }
       ${d.hasBattery ? `
@@ -1168,12 +1333,12 @@ class SmoothEnergyCard extends HTMLElement {
         <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
         ${d.battSoc != null
           ? `<text x="${bP.x}" y="${bP.y+9}" class="n-power" style="font-size:11px">${Math.round(d.battSoc)}%</text>`
-          : `<text x="${bP.x}" y="${bP.y+9}" class="n-name" opacity="0.35">BATT</text>`}
+          : `<text x="${bP.x}" y="${bP.y+9}" class="n-name" opacity="0.35">${this._t('batt')}</text>`}
         ${d.battCharging
           ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="font-size:7.5px">+${fmtW(d.battW)}</text>`
           : d.battDischarging
           ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.battW))}</text>`
-          : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" opacity="0.35" style="font-size:7.5px">IDLE</text>`}
+          : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" opacity="0.35" style="font-size:7.5px">${this._t('idle')}</text>`}
       ` : ''}
     </svg>`;
   }
@@ -1185,10 +1350,10 @@ class SmoothEnergyCard extends HTMLElement {
       ? `<img src="${c.v2c_image}" class="v2c-img${active?' plugged':''}" alt="V2C" onerror="this.style.display='none'">`
       : `<div style="width:32px;height:32px;color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
     const content = d.v2gActive
-      ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">↑ Discharging to home</div>`
+      ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">${this._t('discharging')}</div>`
       : (active
-        ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
-        : `<div class="charger-idle">Idle</div>`);
+        ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">${this._t('charging')}</div>${this._buildChargerCostDisplay(d)}`
+        : `<div class="charger-idle">${this._t('charger_idle')}</div>`);
     return `
       <div class="ev-card ev-charger${active?' plugged':''}" data-tip="${active?'':'V2C Charger\nIdle — no vehicle connected'}">
         <div class="ev-name">${d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger'}</div>
@@ -1211,14 +1376,8 @@ class SmoothEnergyCard extends HTMLElement {
       ? `<div class="car-img-wrap"><img src="${ev.image}" alt="${ev.name}" loading="lazy" onerror="this.parentElement.style.display='none'">${ev.isCharging?`<div class="charging-badge">⚡</div>`:''}</div>` : '';
     const etaLine = (ev.isCharging && ev.eta)
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
-    const batTip = [
-      `${ev.name}`,
-      `Battery: ${ev.bat}%`,
-      `Range: ${ev.rng} km`,
-      ev.targetSoc != null ? `Target SoC: ${ev.targetSoc}%` : '',
-      ev.isCharging && ev.eta ? `ETA: ${ev.eta}` : '',
-      ev.isCharging ? 'Charging via V2C' : '',
-    ].filter(Boolean).join('\n');
+    const batTip = this._t('tip_bat', ev.name, ev.bat, ev.rng, ev.targetSoc, ev.isCharging && ev.eta ? ev.eta : null)
+      + (ev.isCharging ? '\n' + this._t('charging_via') : '');
 
     return `
       <div class="ev-card ${theme.cls}${ev.isCharging?' ev-is-charging':''}">
@@ -1232,7 +1391,7 @@ class SmoothEnergyCard extends HTMLElement {
           </svg>
           <div class="bat-text">${ev.bat}<sub>%</sub></div>
         </div>
-        <div class="ev-range" data-tip="${ev.rng} km range\n≈ ${Math.round(ev.rng / 6)} h driving">${ev.rng} <em>km</em></div>
+        <div class="ev-range" data-tip="${this._t('tip_range', ev.rng, Math.round(ev.rng / 6))}">${ev.rng} <em>km</em></div>
         ${etaLine}
       </div>`;
   }
@@ -1400,14 +1559,14 @@ class SmoothEnergyCard extends HTMLElement {
     navigator.clipboard.writeText(lines).then(() => {
       const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
       if (toast) {
-        toast.textContent = '✓ Copied to clipboard!';
+        toast.textContent = this._t('copied');
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 2200);
       }
     }).catch(() => {
       const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
       if (toast) {
-        toast.textContent = '⚠️ Clipboard not available';
+        toast.textContent = this._t('clip_err');
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 2200);
       }
@@ -1687,6 +1846,19 @@ class SmoothEnergyCardEditor extends HTMLElement {
               <div class="field">
                 <label>Card Title</label>
                 <input type="text" data-key="title" value="${(c.title||'').replace(/"/g,'&quot;')}" placeholder="Energy Dashboard">
+              </div>
+            </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Language</label>
+                <select data-key="language">
+                  <option value="auto"${(c.language||'auto')==='auto'?' selected':''}>🌐 Auto (HA language)</option>
+                  <option value="en"${c.language==='en'?' selected':''}>🇬🇧 English</option>
+                  <option value="fr"${c.language==='fr'?' selected':''}>🇫🇷 Français</option>
+                  <option value="es"${c.language==='es'?' selected':''}>🇪🇸 Español</option>
+                  <option value="zh"${c.language==='zh'?' selected':''}>🇨🇳 中文</option>
+                  <option value="ja"${c.language==='ja'?' selected':''}>🇯🇵 日本語</option>
+                </select>
               </div>
             </div>
             <div class="row cols-1">

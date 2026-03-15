@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -33,6 +33,7 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Smart charging recommendation** — Contextual advice based on Tempo color, solar surplus, and pricing
 - **Sun arc** — Animated sun position arc in the energy flow diagram, tracks daylight hours
 - **V2G support** — Detects negative charger power and shows reverse energy flow (EV→home)
+- **Multilingual** — Full UI in English, French, Spanish, Chinese (Simplified) and Japanese. Auto-detects HA language, or set manually via `language` config key
 
 ## Screenshots
 
@@ -173,6 +174,7 @@ devices:
 | `battery_power` | entity | Battery/ESS power sensor (W or kW) — **positive = charging, negative = discharging** |
 | `battery_soc` | entity | Battery state of charge sensor (%) — optional |
 | `devices_sort` | boolean | Sort device tiles by live consumption descending (default: `false`) |
+| `language` | string | `auto` (default), `en`, `fr`, `es`, `zh`, `ja` |
 | `evs` | list | List of electric vehicles (see below) |
 | `devices` | list | List of device monitors (see below) |
 
@@ -216,6 +218,12 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.6.0 (2026-03-15)
+- Full internationalization (i18n): English, French, Spanish, Chinese (Simplified), Japanese
+- Auto-detects Home Assistant interface language (`hass.language`), or set manually via `language` config key
+- Language selector dropdown added to the visual config editor (General section)
+- All UI strings translated: node labels, stat tiles, EV tooltips, banners, cost display, recommendations, clipboard toasts
 
 ### v1.5.4 (2026-03-15)
 - V2G bi-directional charging: detects negative charger power (v2cW < -10W) as EV→home discharge
