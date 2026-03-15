@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -24,6 +24,7 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Sparkline charts** — Mini 6-hour history charts in Solar Today and Grid stat tiles
 - **Tap to more-info** — Tap any EV card, charger, or device tile to open the HA entity popup
 - **Home battery node** — Battery/ESS shown in energy flow with charge/discharge direction and SoC%
+- **Device alerts & ranking** — Per-device alert threshold (border pulses red), optional sort by consumption
 
 ## Screenshots
 
@@ -163,6 +164,7 @@ devices:
 | `theme` | string | `dark` (default) or `light` |
 | `battery_power` | entity | Battery/ESS power sensor (W or kW) — **positive = charging, negative = discharging** |
 | `battery_soc` | entity | Battery state of charge sensor (%) — optional |
+| `devices_sort` | boolean | Sort device tiles by live consumption descending (default: `false`) |
 | `evs` | list | List of electric vehicles (see below) |
 | `devices` | list | List of device monitors (see below) |
 
@@ -187,6 +189,7 @@ devices:
   - name: My Device       # Display name
     entity: sensor.xxx    # Power sensor (W or kW)
     icon: plug            # Icon name (see below)
+    alert_above: 2000     # Optional — device border pulses red above this wattage
 ```
 
 **Available icons:** `ac`, `water`, `tv`, `washer`, `computer`, `server`, `plug`, `bolt`, `car`
@@ -205,6 +208,12 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.4.1 (2026-03-15)
+- Per-device `alert_above` threshold (W): device tile border pulses red when power exceeds the threshold
+- New `devices_sort: true` config option to rank devices by live consumption (highest first)
+- Rank badge (#1, #2…) shown on device tiles when sorting is active
+- Device tooltips include alert warning text when threshold is exceeded
 
 ### v1.4.0 (2026-03-15)
 - Home battery / ESS node in the SVG energy flow diagram (bottom-left position)

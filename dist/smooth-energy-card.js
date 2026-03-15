@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.4.0
+ * Smooth Energy Card v1.4.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.4.0
+ * @version 1.4.1
  */
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -356,6 +356,12 @@ const CSS = `
 
   /* ── BATTERY NODE ── */
   .n-bat { stroke:#34d399; }
+
+  /* ── DEVICE ALERTS & RANKING ── */
+  .device.alert { border-color:rgba(248,113,113,0.45)!important; }
+  @keyframes dev-alert-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0);border-color:rgba(248,113,113,0.45)} 50%{box-shadow:0 0 12px 3px rgba(248,113,113,0.25);border-color:rgba(248,113,113,0.85)} }
+  .device.alert { animation:dev-alert-pulse 1.6s ease-in-out infinite; }
+  .dev-rank { position:absolute; top:4px; left:5px; font-size:0.55em; font-weight:800; color:#2a3558; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -407,6 +413,7 @@ class SmoothEnergyCard extends HTMLElement {
       theme: 'dark',
       battery_power: '',
       battery_soc: '',
+      devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
         { name:'Ballon ECS',    entity:'sensor.shelly2_channel_2_power', icon:'water' },
@@ -509,7 +516,11 @@ class SmoothEnergyCard extends HTMLElement {
     const sessionCostEst = (v2cSessionKwh > 0 && price != null && chargerActive && v2cW > 10)
       ? v2cSessionKwh * (v2cW > 0 ? gridChargeW/v2cW : 1) * price : null;
 
-    const devices = (c.devices || []).map(d => ({ name:d.name, icon:d.icon||'plug', w:toWatts(h, d.entity) }));
+    let devices = (c.devices || []).map(d => ({
+      name: d.name, icon: d.icon||'plug', w: toWatts(h, d.entity),
+      alert_above: d.alert_above != null ? parseFloat(d.alert_above) : null,
+    }));
+    if (c.devices_sort) devices = [...devices].sort((a, b) => b.w - a.w);
 
     return {
       solarW, gridW, gridImpW, gridExpW, houseW, v2cW, isExp, price, costH,
@@ -587,7 +598,7 @@ class SmoothEnergyCard extends HTMLElement {
 
     // Devices
     const devicesGrid = card.querySelector('[data-uid="devices-grid"]');
-    if (devicesGrid) devicesGrid.innerHTML = d.devices.map(dev => this._buildDevice(dev)).join('');
+    if (devicesGrid) devicesGrid.innerHTML = d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('');
 
     // Forecast
     const forecastEl = card.querySelector('[data-uid="forecast-row"]');
@@ -832,7 +843,7 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
       </div>
       <div class="section-title">Device Consumption</div>
-      <div class="devices-grid" data-uid="devices-grid">${d.devices.map(dev => this._buildDevice(dev)).join('')}</div>
+      <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>
       <div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>`;
   }
 
@@ -962,10 +973,14 @@ class SmoothEnergyCard extends HTMLElement {
       </div>`;
   }
 
-  _buildDevice(dev) {
+  _buildDevice(dev, rank) {
     const on = dev.w > 5;
+    const isAlert = dev.alert_above != null && dev.w > dev.alert_above;
     const icon = SVG_ICONS[dev.icon] || SVG_ICONS.plug;
-    return `<div class="device${on?' on':''}"><div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div></div>`;
+    const rankHtml = rank != null ? `<span class="dev-rank">#${rank+1}</span>` : '';
+    const alertTip = isAlert ? `⚠️ Above ${dev.alert_above}W threshold` : '';
+    const tip = [dev.name, `${Math.round(dev.w)} W`, alertTip].filter(Boolean).join('\n');
+    return `<div class="device${on?' on':''}${isAlert?' alert':''}" data-tip="${tip}">${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div></div>`;
   }
 
   _drawChargingCable(shadow, d) {
@@ -1359,6 +1374,15 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <input type="text" data-key="title" value="${(c.title||'').replace(/"/g,'&quot;')}" placeholder="Energy Dashboard">
               </div>
             </div>
+            <div class="row cols-1">
+              <div class="field">
+                <label>Sort devices by consumption</label>
+                <select data-key="devices_sort">
+                  <option value="false"${!c.devices_sort?' selected':''}>No — keep config order</option>
+                  <option value="true"${c.devices_sort?' selected':''}>Yes — highest consumer first</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1629,6 +1653,13 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <ha-entity-picker data-dev="${i}" data-dev-key="entity" allow-custom-entity></ha-entity-picker>
           </div>
         </div>
+        <div class="row cols-2">
+          <div class="field">
+            <label>Alert above (W)</label>
+            <input type="number" data-dev="${i}" data-dev-key="alert_above" value="${dev.alert_above ?? ''}" min="0" step="10" placeholder="e.g. 2000">
+            <span class="hint">Device border pulses red above this wattage</span>
+          </div>
+        </div>
       </div>`;
   }
 
@@ -1647,7 +1678,13 @@ class SmoothEnergyCardEditor extends HTMLElement {
 
     // Top-level text/number inputs
     sr.querySelectorAll('input[data-key], select[data-key]').forEach(el => {
-      el.addEventListener('change', () => { this._set(el.dataset.key, el.value); });
+      el.addEventListener('change', () => {
+        if (el.dataset.key === 'devices_sort') {
+          this._set('devices_sort', el.value === 'true');
+        } else {
+          this._set(el.dataset.key, el.value);
+        }
+      });
     });
 
     // EV entity pickers
