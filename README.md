@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -26,6 +26,13 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Home battery node** — Battery/ESS shown in energy flow with charge/discharge direction and SoC%
 - **Device alerts & ranking** — Per-device alert threshold (border pulses red), optional sort by consumption
 - **Copy to clipboard** — One-click copy of current energy state as formatted text (EV status, costs, solar, etc.)
+- **3D orb nodes** — Energy flow nodes rendered as glowing 3D spheres with specular highlights
+- **Glassmorphism UI** — Frosted glass blur effect on all stat and EV tiles
+- **HUD texture** — Animated grid background gives the card a real control-panel feel
+- **Self-sufficiency gauge** — Circular arc gauge showing % of consumption covered by solar
+- **Smart charging recommendation** — Contextual advice based on Tempo color, solar surplus, and pricing
+- **Sun arc** — Animated sun position arc in the energy flow diagram, tracks daylight hours
+- **V2G support** — Detects negative charger power and shows reverse energy flow (EV→home)
 
 ## Screenshots
 
@@ -209,6 +216,33 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.5.4 (2026-03-15)
+- V2G bi-directional charging: detects negative charger power (v2cW < -10W) as EV→home discharge
+- Reverse energy flow particles in SVG diagram when V2G is active
+- Charger card and SVG node update to show "▲ V2G" label and green color during discharge
+- Charging cable hidden during V2G (no cable drawn from charger to EV when discharging)
+
+### v1.5.3 (2026-03-15)
+- Animated sun position arc overlaid on the energy flow SVG
+- Bezier arc from sunrise (6:00) to sunset (21:00) with dashed stroke
+- Moving sun dot with golden/orange color shift and drop shadow glow — brighter at noon
+
+### v1.5.2 (2026-03-15)
+- Smart charging recommendation engine with contextual banner above EV section
+- Detects: free solar charging, solar surplus, EDF Tempo ROUGE/BLEU, price alert thresholds
+- Color-coded banners (green = free/good, blue = good opportunity, yellow = info, red = warning)
+
+### v1.5.1 (2026-03-15)
+- Solar self-sufficiency gauge: circular arc SVG widget showing % of consumption covered by solar
+- Daily mode (when export data available): shows solar self-consumed vs total consumption
+- Live mode fallback: real-time ratio of solar to total load
+- Color-coded: green ≥70%, yellow ≥30%, red <30%
+
+### v1.5.0 (2026-03-15)
+- 3D orb nodes in energy flow SVG: each node uses a radialGradient for depth, with specular highlight dot
+- Glassmorphism tiles: `backdrop-filter: blur()` on all stat, EV, device, and daily-summary tiles
+- HUD background texture: animated repeating grid lines + radial ambient glows on card background
 
 ### v1.4.2 (2026-03-15)
 - 📋 Share button in card header — copies formatted energy state snapshot to clipboard
