@@ -505,8 +505,8 @@ class SmoothEnergyCard extends HTMLElement {
       ],
       tempo_color_today: '',
       tempo_color_tomorrow: '',
-      grid_energy_import: 'sensor.shelly_channel_1_energy',
-      grid_energy_export: 'sensor.shelly_channel_1_energy_returned',
+      grid_energy_import: '',   // must be a DAILY-reset sensor (utility_meter helper), NOT a cumulative counter
+      grid_energy_export: '',   // same — daily reset only
       feed_in_rate: 0,
       price_alert_high: null,
       price_alert_low: null,
@@ -579,9 +579,12 @@ class SmoothEnergyCard extends HTMLElement {
     const tempoToday    = c.tempo_color_today    ? strState(h, c.tempo_color_today)    : null;
     const tempoTomorrow = c.tempo_color_tomorrow ? strState(h, c.tempo_color_tomorrow) : null;
 
-    // Daily summary
-    const importKwhDay  = c.grid_energy_import ? numState(h, c.grid_energy_import, null) : null;
-    const exportKwhDay  = c.grid_energy_export ? numState(h, c.grid_energy_export, null) : null;
+    // Daily summary — sensors MUST be daily-reset (utility_meter helper).
+    // Guard: >300 kWh "today" is physically impossible for a house → sensor is a cumulative counter, ignore it.
+    const _rawImport    = c.grid_energy_import ? numState(h, c.grid_energy_import, null) : null;
+    const _rawExport    = c.grid_energy_export ? numState(h, c.grid_energy_export, null) : null;
+    const importKwhDay  = (_rawImport  != null && _rawImport  < 300) ? _rawImport  : null;
+    const exportKwhDay  = (_rawExport  != null && _rawExport  < 300) ? _rawExport  : null;
     const selfConsumedKwh = (solarToday != null && exportKwhDay != null) ? Math.max(0, solarToday - exportKwhDay) : solarToday;
     const costToday     = (importKwhDay  != null && price != null) ? importKwhDay * price : null;
     const savingsToday  = (selfConsumedKwh != null && price != null) ? selfConsumedKwh * price : null;
