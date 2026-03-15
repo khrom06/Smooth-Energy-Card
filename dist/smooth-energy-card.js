@@ -1,13 +1,13 @@
 /**
- * Smooth Energy Card v1.0.0
+ * Smooth Energy Card v1.1.0
  * A beautiful animated energy monitoring card for Home Assistant.
  * Displays solar production, grid import/export, EV charging, and device consumption.
  *
  * @license MIT
- * @version 1.0.0
+ * @version 1.1.0
  */
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -52,6 +52,37 @@ function toWatts(hass, entity) {
 function strState(hass, entity) {
   const s = haState(hass, entity);
   return s ? s.state : 'unknown';
+}
+
+function fmtEta(hours) {
+  if (hours == null || hours <= 0 || !isFinite(hours)) return null;
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function calcEta(hass, batterySoc, chargingPowerEntity, chargingRateEntity, targetSocEntity, capacityKwh) {
+  const targetSoc = targetSocEntity ? numState(hass, targetSocEntity, null) : null;
+  if (targetSoc == null || targetSoc <= batterySoc) return null;
+  const remaining = targetSoc - batterySoc; // %
+
+  // Try %/h rate first (Fiat 500e)
+  if (chargingRateEntity) {
+    const unit = unitOf(hass, chargingRateEntity);
+    const rate = numState(hass, chargingRateEntity, 0);
+    if (unit === '%/h' && rate > 0) return fmtEta(remaining / rate);
+  }
+  // Fall back to kW + capacity (Cupra)
+  if (chargingPowerEntity && capacityKwh > 0) {
+    const powerKw = toWatts(hass, chargingPowerEntity) / 1000;
+    if (powerKw > 0.1) {
+      const pctPerHour = (powerKw / capacityKwh) * 100;
+      return fmtEta(remaining / pctPerHour);
+    }
+  }
+  return null;
 }
 
 // ─── SVG Icon library ─────────────────────────────────────────────────────────
@@ -158,8 +189,26 @@ const CSS = `
   .t-imp   { stroke: #f87171; }
   .t-exp   { stroke: #34d399; }
   .t-v2c   { stroke: #c084fc; }
-  /* direction arrows on paths */
-  .arrow { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* V2C active ring pulse */
+  .v2c-ring-pulse {
+    fill: none;
+    stroke: #c084fc;
+    stroke-width: 2;
+    opacity: 0;
+    animation: v2c-svg-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes v2c-svg-pulse {
+    0%   { opacity: 0.6; r: 28; }
+    100% { opacity: 0;   r: 46; }
+  }
+  /* V2C charging bolt blink */
+  .v2c-bolt-active {
+    animation: bolt-blink 0.9s ease-in-out infinite alternate;
+  }
+  @keyframes bolt-blink {
+    from { opacity: 1; }
+    to   { opacity: 0.35; }
+  }
 
   /* ── SURPLUS BANNER ── */
   .surplus {
@@ -236,9 +285,47 @@ const CSS = `
   }
   .ev-charger { border-color: rgba(167,139,250,0.2); }
   .ev-charger::before { background: linear-gradient(90deg, #7c3aed, #c084fc, #7c3aed); opacity: 0.8; }
-  .ev-charger.active { border-color: rgba(192,132,252,0.5); box-shadow: 0 0 20px rgba(167,139,250,0.1); }
+
+  /* V2C plugged-in animation */
+  .ev-charger.plugged {
+    border-color: rgba(192,132,252,0.7);
+    box-shadow: 0 0 0 0 rgba(192,132,252,0);
+    animation: charger-card-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes charger-card-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(192,132,252,0.5); border-color: rgba(192,132,252,0.7); }
+    50%  { box-shadow: 0 0 22px 6px rgba(192,132,252,0.2); border-color: rgba(192,132,252,1); }
+    100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); border-color: rgba(192,132,252,0.7); }
+  }
+  .ev-charger.plugged::before {
+    background: linear-gradient(90deg, #7c3aed, #c084fc, #a855f7, #c084fc, #7c3aed);
+    background-size: 200% 100%;
+    animation: charger-bar-flow 1.5s linear infinite;
+    opacity: 1;
+  }
+  @keyframes charger-bar-flow {
+    from { background-position: 0% 50%; }
+    to   { background-position: 100% 50%; }
+  }
+
   .ev-cupra::before { background: linear-gradient(90deg, #f59e0b, #ef4444); }
   .ev-fiat::before  { background: linear-gradient(90deg, #3b82f6, #10b981); }
+
+  /* EV being charged animation */
+  .ev-card.ev-is-charging {
+    animation: ev-charge-pulse 2s ease-in-out infinite;
+  }
+  @keyframes ev-charge-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+    50%  { box-shadow: 0 0 18px 4px rgba(52,211,153,0.2); border-color: rgba(52,211,153,0.6); }
+    100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+  }
+  .ev-card.ev-is-charging::before {
+    background: linear-gradient(90deg, #10b981, #34d399, #6ee7b7, #34d399, #10b981);
+    background-size: 200% 100%;
+    animation: charger-bar-flow 1.2s linear infinite;
+    opacity: 1;
+  }
 
   .ev-name { font-size: 0.65em; font-weight: 700; color: #6b7db8; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
 
@@ -261,6 +348,25 @@ const CSS = `
   }
   .car-img-wrap img:hover { opacity: 1; }
 
+  /* charging badge on car */
+  .charging-badge {
+    position: absolute;
+    top: 2px; right: 2px;
+    background: rgba(52,211,153,0.9);
+    border-radius: 4px;
+    padding: 1px 3px;
+    font-size: 8px;
+    font-weight: 800;
+    color: #052e16;
+    line-height: 1.3;
+    letter-spacing: 0.3px;
+    animation: badge-blink 1s ease-in-out infinite alternate;
+  }
+  @keyframes badge-blink {
+    from { opacity: 1; }
+    to   { opacity: 0.5; }
+  }
+
   /* battery ring */
   .bat-ring { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
   .bat-ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
@@ -277,14 +383,54 @@ const CSS = `
   .ev-range { font-size: 0.8em; font-weight: 700; color: #8899cc; }
   .ev-range em { font-style: normal; font-size: 0.8em; color: #3d5280; }
 
+  .ev-eta {
+    font-size: 0.62em;
+    font-weight: 700;
+    color: #34d399;
+    text-align: center;
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 6px;
+    padding: 2px 6px;
+    width: 100%;
+    animation: eta-fade 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes eta-fade {
+    from { opacity: 1; }
+    to   { opacity: 0.65; }
+  }
+
   /* charger card */
   .charger-icon { width: 32px; height: 32px; margin: 2px 0; }
   .charger-power { font-size: 1.2em; font-weight: 800; color: #c084fc; }
   .charger-sub { font-size: 0.65em; color: #4a3a7a; text-align: center; }
   .charger-idle { font-size: 0.68em; color: #2a2050; text-align: center; margin-top: 2px; }
 
+  /* charger cost breakdown */
+  .charge-cost-block {
+    width: 100%;
+    background: rgba(167,139,250,0.05);
+    border: 1px solid rgba(167,139,250,0.12);
+    border-radius: 8px;
+    padding: 5px 7px;
+    margin-top: 2px;
+    font-size: 0.6em;
+  }
+  .charge-cost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    line-height: 1.6;
+  }
+  .cc-solar { color: #fbbf24; font-weight: 600; }
+  .cc-grid  { color: #f87171; font-weight: 600; }
+  .cc-free  { color: #34d399; font-weight: 700; }
+  .cc-cost  { color: #f87171; font-weight: 700; }
+  .cc-total { color: #c084fc; font-weight: 800; border-top: 1px solid rgba(167,139,250,0.15); padding-top: 3px; margin-top: 1px; }
+
   /* V2C image */
   .v2c-img { width: 56px; height: 40px; object-fit: contain; opacity: 0.7; }
+  .v2c-img.plugged { opacity: 1; filter: drop-shadow(0 0 8px rgba(192,132,252,0.6)); }
 
   /* ── DEVICES ── */
   .devices-grid {
@@ -392,14 +538,23 @@ class SmoothEnergyCard extends HTMLElement {
       solar_today: 'sensor.hoymiles_gateway_solarh_6402640_today_eq',
       solar_forecast_today: 'sensor.energy_production_today',
       solar_forecast_tomorrow: 'sensor.energy_production_tomorrow',
+      v2c_session_energy: 'sensor.energie_v2c_session',
       ev1_name: 'Cupra Tavascan',
       ev1_battery: 'sensor.cupra_tavascan_battery_level',
       ev1_range: 'sensor.cupra_tavascan_electric_range',
       ev1_image: '/local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png',
+      ev1_charging: 'binary_sensor.cupra_tavascan_charging_state',
+      ev1_charging_power: 'sensor.cupra_tavascan_charging_power',
+      ev1_target_soc: 'sensor.cupra_tavascan_target_state_of_charge',
+      ev1_battery_capacity: 77,
       ev2_name: 'Fiat 500e',
       ev2_battery: 'sensor.fiat_500e_berline_my24_hvbattery_charge',
       ev2_range: 'sensor.fiat_500e_berline_my24_driving_range',
       ev2_image: '/local/images/Home/fiat500.jpg',
+      ev2_charging: '',
+      ev2_charging_rate: 'sensor.fiat_500e_berline_my24_charging_rate',
+      ev2_target_soc: '',
+      ev2_battery_capacity: 37.3,
       v2c_image: '/local/images/v2ctrydan-1.png',
       devices: [
         { name: 'Climatisation', entity: 'sensor.shelly2_channel_1_power', icon: 'ac' },
@@ -443,8 +598,6 @@ class SmoothEnergyCard extends HTMLElement {
     const v2cW    = toWatts(h, c.v2c_power);
     const price   = numState(h, c.kwh_price, null);
 
-    // EDF Shelly reports kW; toWatts handles conversion but let's be explicit
-    // if rawGrid is e.g. -1.67 kW, toWatts returns -1670 W
     const gridW   = rawGrid; // W, negative = exporting
     const isExp   = gridW < 0;
     const gridImpW= isExp ? 0 : gridW;
@@ -453,18 +606,50 @@ class SmoothEnergyCard extends HTMLElement {
     const solarToday    = numState(h, c.solar_today, null);
     const fcToday       = numState(h, c.solar_forecast_today, null);
     const fcTomorrow    = numState(h, c.solar_forecast_tomorrow, null);
+    const v2cSessionKwh = numState(h, c.v2c_session_energy, null);
 
     const ev1Bat  = clamp(numState(h, c.ev1_battery, 0), 0, 100);
     const ev1Rng  = numState(h, c.ev1_range, 0);
+    const ev1TargetSoc = c.ev1_target_soc ? numState(h, c.ev1_target_soc, null) : null;
     const ev2Bat  = clamp(numState(h, c.ev2_battery, 0), 0, 100);
     const ev2Rng  = numState(h, c.ev2_range, 0);
+    const ev2TargetSoc = c.ev2_target_soc ? numState(h, c.ev2_target_soc, null) : null;
 
-    // Hourly cost estimate
+    // EV charging state detection
+    const chargerActive = v2cW > 10;
+    let ev1Charging = c.ev1_charging ? strState(h, c.ev1_charging) === 'on' : false;
+    let ev2Charging = c.ev2_charging ? strState(h, c.ev2_charging) === 'on' : false;
+    // Fallback: if charger active but no charging sensor configured, assign to EV1
+    if (chargerActive && !ev1Charging && !ev2Charging && !c.ev1_charging && !c.ev2_charging) {
+      ev1Charging = true;
+    }
+
+    // ETA to charge goal
+    const ev1Eta = ev1Charging
+      ? calcEta(h, ev1Bat, c.ev1_charging_power, null, c.ev1_target_soc, c.ev1_battery_capacity || 77)
+      : null;
+    const ev2Eta = ev2Charging
+      ? calcEta(h, ev2Bat, null, c.ev2_charging_rate, c.ev2_target_soc, c.ev2_battery_capacity || 37.3)
+      : null;
+
+    // Hourly cost estimate (grid-based)
     let costH = null;
     if (price != null) {
-      const impCost  = (gridImpW / 1000) * price;      // €/h consumed
-      const expEarn  = (gridExpW / 1000) * price * 0.11; // approx feed-in 11ct (revente FR)
+      const impCost  = (gridImpW / 1000) * price;
+      const expEarn  = (gridExpW / 1000) * price * 0.11;
       costH = impCost - expEarn;
+    }
+
+    // V2C charging cost breakdown
+    // Solar contribution covers V2C first (free energy), rest from grid
+    const solarFreeW  = chargerActive ? Math.min(solarW, v2cW) : 0;
+    const gridChargeW = chargerActive ? Math.max(0, v2cW - solarW) : 0;
+    const chargeCostH = (price != null && chargerActive) ? (gridChargeW / 1000) * price : null;
+    // Session cost estimate: session kWh × avg grid fraction × price
+    let sessionCostEst = null;
+    if (v2cSessionKwh != null && v2cSessionKwh > 0 && price != null && chargerActive && v2cW > 10) {
+      const gridFraction = v2cW > 0 ? gridChargeW / v2cW : 1;
+      sessionCostEst = v2cSessionKwh * gridFraction * price;
     }
 
     const devices = (c.devices || []).map(d => ({
@@ -478,6 +663,10 @@ class SmoothEnergyCard extends HTMLElement {
       houseW, v2cW, isExp, price, costH,
       solarToday, fcToday, fcTomorrow,
       ev1Bat, ev1Rng, ev2Bat, ev2Rng,
+      ev1Charging, ev2Charging, chargerActive,
+      ev1TargetSoc, ev2TargetSoc, ev1Eta, ev2Eta,
+      solarFreeW, gridChargeW, chargeCostH, sessionCostEst,
+      v2cSessionKwh,
       devices,
       surplusW: Math.max(0, solarW - houseW - v2cW),
     };
@@ -488,7 +677,6 @@ class SmoothEnergyCard extends HTMLElement {
     const shadow = this.shadowRoot;
     const d = this._data();
 
-    // Build fresh DOM
     shadow.innerHTML = '';
     const style = document.createElement('style');
     style.textContent = CSS;
@@ -509,7 +697,6 @@ class SmoothEnergyCard extends HTMLElement {
   _buildCard(d) {
     const c = this._config;
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
-
     const hasSurplus = d.surplusW > 50;
 
     let costClass = 'st-cost', costStr = '—';
@@ -568,8 +755,8 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="section-title">Electric Vehicles &amp; Charger</div>
         <div class="ev-grid">
           ${this._buildCharger(d)}
-          ${this._buildEV('ev-cupra', c.ev1_name, d.ev1Bat, d.ev1Rng, c.ev1_image)}
-          ${this._buildEV('ev-fiat', c.ev2_name, d.ev2Bat, d.ev2Rng, c.ev2_image)}
+          ${this._buildEV('ev-cupra', c.ev1_name, d.ev1Bat, d.ev1Rng, c.ev1_image, d.ev1Charging, d.ev1TargetSoc, d.ev1Eta)}
+          ${this._buildEV('ev-fiat', c.ev2_name, d.ev2Bat, d.ev2Rng, c.ev2_image, d.ev2Charging, d.ev2TargetSoc, d.ev2Eta)}
         </div>
       </div>
 
@@ -588,22 +775,19 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _buildFlowSVG(d) {
-    // Layout: W=360 H=210
-    // Solar (top-left), House (center), Grid (top-right), V2C (bottom-center)
     const W = 360, H = 210;
-    const sP = { x: 58, y: 62 };   // solar node center
-    const hP = { x: 180, y: 105 }; // house node center
-    const gP = { x: 302, y: 62 };  // grid node center
-    const vP = { x: 180, y: 185 }; // v2c node center
-    const R = 44;  // main node radius
-    const Rv = 28; // v2c radius
+    const sP = { x: 58, y: 62 };
+    const hP = { x: 180, y: 105 };
+    const gP = { x: 302, y: 62 };
+    const vP = { x: 180, y: 185 };
+    const R = 44;
+    const Rv = 28;
 
     const sOn = d.solarW > 20;
     const iOn = d.gridImpW > 20;
     const eOn = d.gridExpW > 20;
     const vOn = d.v2cW > 10;
 
-    // Bezier paths
     const sPth = `M${sP.x},${sP.y} C${(sP.x+hP.x)/2-10},${sP.y} ${(sP.x+hP.x)/2+10},${hP.y} ${hP.x},${hP.y}`;
     const iPth = `M${gP.x},${gP.y} C${(gP.x+hP.x)/2+10},${gP.y} ${(gP.x+hP.x)/2-10},${hP.y} ${hP.x},${hP.y}`;
     const ePth = `M${hP.x},${hP.y} C${(hP.x+gP.x)/2-10},${hP.y} ${(hP.x+gP.x)/2+10},${gP.y} ${gP.x},${gP.y}`;
@@ -613,6 +797,11 @@ class SmoothEnergyCard extends HTMLElement {
     const gClass = d.isExp ? 'c-grid-exp' : 'c-grid-imp';
     const gVal   = fmtW(Math.abs(d.gridW));
     const gArrow = d.isExp ? '↑' : '↓';
+
+    // V2C power text
+    const vPowerTxt = vOn ? fmtW(d.v2cW) : '';
+    // When charging: show solar free fraction in V2C node
+    const vSolarPct = (vOn && d.v2cW > 0) ? Math.round((d.solarFreeW / d.v2cW) * 100) : 0;
 
     return /* html */`
     <svg class="flow-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
@@ -629,12 +818,17 @@ class SmoothEnergyCard extends HTMLElement {
           <stop offset="0%" stop-color="${d.isExp ? '#34d399' : '#f87171'}" stop-opacity="0.2"/>
           <stop offset="100%" stop-color="${d.isExp ? '#34d399' : '#f87171'}" stop-opacity="0"/>
         </radialGradient>
+        <radialGradient id="glow-v" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#c084fc" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#c084fc" stop-opacity="0"/>
+        </radialGradient>
       </defs>
 
       <!-- Glow halos -->
       ${sOn ? `<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>` : ''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R+14}" fill="url(#glow-g)"/>
+      ${vOn ? `<circle cx="${vP.x}" cy="${vP.y}" r="${Rv+20}" fill="url(#glow-v)"/>` : ''}
 
       <!-- Flow tracks -->
       ${sOn ? `<path id="pSolar" class="track t-solar" d="${sPth}"/>` : ''}
@@ -666,51 +860,100 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${gP.x}" y="${gP.y+22}" class="n-name">${gLabel}</text>
 
       <!-- ── V2C NODE ── -->
+      ${vOn ? `<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>` : ''}
       <circle class="n-ring n-v2c" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>
-      <text x="${vP.x}" y="${vP.y-2}" font-size="14" text-anchor="middle" dominant-baseline="middle"
-            fill="${vOn ? '#c084fc' : '#2a2050'}">⚡</text>
-      <text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C${vOn ? ' ' + fmtW(d.v2cW) : ''}</text>
+      <text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle"
+            fill="${vOn ? '#c084fc' : '#2a2050'}" class="${vOn ? 'v2c-bolt-active' : ''}">⚡</text>
+      ${vOn
+        ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${vPowerTxt}</text>
+           ${vSolarPct > 0 ? `<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#fbbf24;font-size:7px">☀️${vSolarPct}% free</text>` : ''}`
+        : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C</text>`
+      }
     </svg>`;
   }
 
   _buildCharger(d) {
     const c = this._config;
-    const active = d.v2cW > 10;
-    const img = c.v2c_image ? `<img src="${c.v2c_image}" class="v2c-img" alt="V2C" onerror="this.style.display='none'">` : `<div class="charger-icon" style="color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
+    const active = d.chargerActive;
+    const imgCls = `v2c-img${active ? ' plugged' : ''}`;
+    const img = c.v2c_image
+      ? `<img src="${c.v2c_image}" class="${imgCls}" alt="V2C" onerror="this.style.display='none'">`
+      : `<div class="charger-icon" style="color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
+
+    let costBlock = '';
+    if (active) {
+      const solarFreeStr = fmtW(d.solarFreeW);
+      const gridStr      = fmtW(d.gridChargeW);
+      const costHStr     = d.chargeCostH != null ? d.chargeCostH.toFixed(3) + ' €/h' : '—';
+      const sessCostStr  = d.sessionCostEst != null ? '~' + d.sessionCostEst.toFixed(2) + ' €' : null;
+      const sesKwhStr    = d.v2cSessionKwh != null && d.v2cSessionKwh > 0 ? fmtKwh(d.v2cSessionKwh) : null;
+
+      costBlock = `
+        <div class="charge-cost-block">
+          ${d.solarFreeW > 5 ? `<div class="charge-cost-row"><span class="cc-solar">☀️ Solar</span><span class="cc-free">${solarFreeStr} — free</span></div>` : ''}
+          ${d.gridChargeW > 5 ? `<div class="charge-cost-row"><span class="cc-grid">⚡ Grid</span><span class="cc-cost">${gridStr}</span></div>` : ''}
+          <div class="charge-cost-row cc-total"><span>Est. cost</span><span>${costHStr}</span></div>
+          ${sesKwhStr ? `<div class="charge-cost-row" style="color:#6b7db8"><span>Session</span><span>${sesKwhStr}${sessCostStr ? ' · ' + sessCostStr : ''}</span></div>` : ''}
+        </div>`;
+    }
+
     return /* html */`
-      <div class="ev-card ev-charger${active ? ' active' : ''}">
+      <div class="ev-card ev-charger${active ? ' plugged' : ''}">
         <div class="ev-name">V2C Charger</div>
         ${img}
         ${active
           ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>`
           : `<div class="charger-idle">Idle</div>`}
+        ${costBlock}
       </div>`;
   }
 
-  _buildEV(cls, name, bat, range, img) {
+  _buildEV(cls, name, bat, range, img, isCharging, targetSoc, eta) {
     const r = 22;
     const circ = 2 * Math.PI * r;
     const fill = bat / 100;
     const offset = circ * (1 - fill);
     const col = bat > 50 ? '#34d399' : bat > 20 ? '#fbbf24' : '#f87171';
-    const imgEl = img
-      ? `<div class="car-img-wrap"><img src="${img}" alt="${name}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`
+    const chargingClass = isCharging ? ' ev-is-charging' : '';
+
+    // Target SoC arc: show a secondary ring marker at the target %
+    const targetOffset = targetSoc != null ? circ * (1 - targetSoc / 100) : null;
+    const targetArc = targetOffset != null && isCharging
+      ? `<circle cx="28" cy="28" r="${r}" fill="none"
+           stroke="rgba(52,211,153,0.35)" stroke-width="6" stroke-linecap="round"
+           stroke-dasharray="3 ${(circ - 3).toFixed(2)}"
+           stroke-dashoffset="${(targetOffset - 1.5).toFixed(2)}"
+           style="pointer-events:none"/>`
       : '';
+
+    const imgEl = img
+      ? `<div class="car-img-wrap">
+           <img src="${img}" alt="${name}" loading="lazy" onerror="this.parentElement.style.display='none'">
+           ${isCharging ? `<div class="charging-badge">⚡ CHG</div>` : ''}
+         </div>`
+      : '';
+
+    const etaLine = (isCharging && eta)
+      ? `<div class="ev-eta">🏁 ${eta}${targetSoc != null ? ' → ' + targetSoc + '%' : ''}</div>`
+      : '';
+
     return /* html */`
-      <div class="ev-card ${cls}">
-        <div class="ev-name">${name}</div>
+      <div class="ev-card ${cls}${chargingClass}">
+        <div class="ev-name">${name}${isCharging ? ' ⚡' : ''}</div>
         ${imgEl}
         <div class="bat-ring">
           <svg viewBox="0 0 56 56">
             <circle class="bat-bg" cx="28" cy="28" r="${r}"/>
             <circle class="bat-fill" cx="28" cy="28" r="${r}"
-              stroke="${col}"
+              stroke="${isCharging ? '#34d399' : col}"
               stroke-dasharray="${circ.toFixed(2)}"
               stroke-dashoffset="${offset.toFixed(2)}"/>
+            ${targetArc}
           </svg>
           <div class="bat-text">${bat}<sub>%</sub></div>
         </div>
         <div class="ev-range">${range} <em>km</em></div>
+        ${etaLine}
       </div>`;
   }
 
@@ -735,10 +978,10 @@ class SmoothEnergyCard extends HTMLElement {
 
   _startParticles(shadow, d) {
     const flows = [
-      { id: 'pSolar', cls: 'c-solar',    col: '#fbbf24', w: d.solarW,    active: d.solarW > 20 },
-      { id: 'pImp',   cls: 'c-grid-imp', col: '#f87171', w: d.gridImpW,  active: d.gridImpW > 20 },
-      { id: 'pExp',   cls: 'c-grid-exp', col: '#34d399', w: d.gridExpW,  active: d.gridExpW > 20 },
-      { id: 'pV2c',   cls: 'c-v2c',      col: '#c084fc', w: d.v2cW,      active: d.v2cW > 10 },
+      { id: 'pSolar', col: '#fbbf24', w: d.solarW,    active: d.solarW > 20 },
+      { id: 'pImp',   col: '#f87171', w: d.gridImpW,  active: d.gridImpW > 20 },
+      { id: 'pExp',   col: '#34d399', w: d.gridExpW,  active: d.gridExpW > 20 },
+      { id: 'pV2c',   col: '#c084fc', w: d.v2cW,      active: d.v2cW > 10 },
     ];
 
     flows.filter(f => f.active).forEach(flow => {
@@ -785,28 +1028,162 @@ class SmoothEnergyCard extends HTMLElement {
   }
 }
 
-// ─── Simple Editor ────────────────────────────────────────────────────────────
+// ─── Card Editor ──────────────────────────────────────────────────────────────
 class SmoothEnergyCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._config = {};
+    this._hass = null;
   }
+
   setConfig(config) {
-    this._config = config;
+    this._config = { ...config };
     this._render();
   }
-  set hass(h) {}
+
+  set hass(h) {
+    this._hass = h;
+    // Re-render if not already done
+    if (this.shadowRoot && !this.shadowRoot.querySelector('.editor-wrap')) {
+      this._render();
+    }
+  }
+
+  _valueChanged(ev) {
+    const key = ev.target.getAttribute('data-key');
+    if (!key) return;
+    const val = ev.target.value;
+    const config = { ...this._config, [key]: val };
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
+    this._config = config;
+  }
 
   _render() {
+    const c = this._config;
+
+    const field = (label, key, placeholder = '') => `
+      <div class="field">
+        <label>${label}</label>
+        <input type="text" data-key="${key}" value="${(c[key] || '').replace(/"/g, '&quot;')}" placeholder="${placeholder}">
+      </div>`;
+
     this.shadowRoot.innerHTML = `
       <style>
-        .editor { padding: 12px; font-family: Roboto, sans-serif; color: #333; }
-        p { font-size: 0.82em; color: #666; margin: 0 0 10px; }
-        ha-textfield { display: block; width: 100%; margin-bottom: 8px; }
+        :host { display: block; }
+        .editor-wrap {
+          padding: 12px 4px;
+          font-family: var(--paper-font-body1_-_font-family, Roboto, sans-serif);
+        }
+        h3 {
+          font-size: 0.7em;
+          font-weight: 800;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: var(--primary-color, #3b82f6);
+          margin: 18px 0 8px;
+          padding-bottom: 4px;
+          border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.1));
+        }
+        h3:first-child { margin-top: 0; }
+        .field {
+          display: flex;
+          flex-direction: column;
+          margin-bottom: 10px;
+        }
+        label {
+          font-size: 0.75em;
+          font-weight: 600;
+          color: var(--secondary-text-color, #666);
+          margin-bottom: 4px;
+        }
+        input[type="text"] {
+          border: 1px solid var(--divider-color, #ddd);
+          border-radius: 6px;
+          padding: 8px 10px;
+          font-size: 0.85em;
+          font-family: inherit;
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color, #333);
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        input[type="text"]:focus {
+          border-color: var(--primary-color, #3b82f6);
+        }
+        .hint {
+          font-size: 0.68em;
+          color: var(--disabled-text-color, #999);
+          margin-top: 3px;
+        }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       </style>
-      <div class="editor">
-        <p>⚙️ Configure via YAML for full control. See the README for all available options.</p>
+      <div class="editor-wrap">
+
+        <h3>General</h3>
+        ${field('Card Title', 'title', 'Energy Dashboard')}
+
+        <h3>Power Sensors</h3>
+        ${field('Solar Power Entity', 'solar_power', 'sensor.shelly_channel_2_power')}
+        ${field('Grid Power Entity', 'grid_power', 'sensor.shelly_channel_1_power')}
+        <p class="hint">⚠️ Grid sensor: negative value = exporting to grid (Shelly EM convention)</p>
+        ${field('House Consumption Entity', 'house_power', 'sensor.consommation_maison_live')}
+        ${field('V2C Charger Power Entity', 'v2c_power', 'sensor.evse_192_168_1_67_puissance_de_charge')}
+        ${field('Electricity Price Entity (€/kWh)', 'kwh_price', 'sensor.prix_du_kwh_en_cours')}
+
+        <h3>Solar Data</h3>
+        <div class="two-col">
+          ${field('Solar Today (kWh)', 'solar_today', '')}
+          ${field('V2C Session Energy', 'v2c_session_energy', 'sensor.energie_v2c_session')}
+        </div>
+        <div class="two-col">
+          ${field('Forecast Today', 'solar_forecast_today', 'sensor.energy_production_today')}
+          ${field('Forecast Tomorrow', 'solar_forecast_tomorrow', 'sensor.energy_production_tomorrow')}
+        </div>
+
+        <h3>EV 1 — ${c.ev1_name || 'EV 1'}</h3>
+        ${field('Name', 'ev1_name', 'Cupra Tavascan')}
+        <div class="two-col">
+          ${field('Battery % Entity', 'ev1_battery', 'sensor.cupra_tavascan_battery_level')}
+          ${field('Range Entity (km)', 'ev1_range', 'sensor.cupra_tavascan_electric_range')}
+        </div>
+        <div class="two-col">
+          ${field('Car Image URL', 'ev1_image', '/local/...')}
+          ${field('Charging State Sensor', 'ev1_charging', 'binary_sensor.cupra_tavascan_charging_state')}
+        </div>
+        <div class="two-col">
+          ${field('Charging Power Entity (kW)', 'ev1_charging_power', 'sensor.cupra_tavascan_charging_power')}
+          ${field('Target SoC Entity (%)', 'ev1_target_soc', 'sensor.cupra_tavascan_target_state_of_charge')}
+        </div>
+        ${field('Battery Capacity (kWh, for ETA)', 'ev1_battery_capacity', '77')}
+        <p class="hint">Charging state: binary_sensor (on = charging) · ETA requires charging power + target SoC</p>
+
+        <h3>EV 2 — ${c.ev2_name || 'EV 2'}</h3>
+        ${field('Name', 'ev2_name', 'Fiat 500e')}
+        <div class="two-col">
+          ${field('Battery % Entity', 'ev2_battery', 'sensor.fiat_500e_berline_my24_hvbattery_charge')}
+          ${field('Range Entity (km)', 'ev2_range', 'sensor.fiat_500e_berline_my24_driving_range')}
+        </div>
+        <div class="two-col">
+          ${field('Car Image URL', 'ev2_image', '/local/...')}
+          ${field('Charging State Sensor', 'ev2_charging', '')}
+        </div>
+        <div class="two-col">
+          ${field('Charging Rate Entity (%/h)', 'ev2_charging_rate', 'sensor.fiat_500e_berline_my24_charging_rate')}
+          ${field('Target SoC Entity (%)', 'ev2_target_soc', '')}
+        </div>
+        ${field('Battery Capacity (kWh, for ETA fallback)', 'ev2_battery_capacity', '37.3')}
+
+        <h3>V2C Charger</h3>
+        ${field('Charger Image URL', 'v2c_image', '/local/images/v2ctrydan-1.png')}
+        <p class="hint">💡 For devices configuration, use YAML mode. See README for full docs.</p>
+
       </div>`;
+
+    this.shadowRoot.querySelectorAll('input[type="text"]').forEach(el => {
+      el.addEventListener('change', this._valueChanged.bind(this));
+      el.addEventListener('blur', this._valueChanged.bind(this));
+    });
   }
 }
 
@@ -821,7 +1198,7 @@ if (!window.customCards.find(c => c.type === 'smooth-energy-card')) {
     name: 'Smooth Energy Card',
     description: 'Animated energy monitoring — solar · grid · EVs · devices',
     preview: true,
-    documentationURL: 'https://github.com/roualin/Smooth-Energy-Card',
+    documentationURL: 'https://github.com/khrom06/Smooth-Energy-Card',
   });
 }
 
