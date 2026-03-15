@@ -1,9 +1,9 @@
 /**
- * Smooth Energy Card v1.2.0
+ * Smooth Energy Card v1.2.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.2.0
+ * @version 1.2.1
  */
 
 const VERSION = '1.2.1';

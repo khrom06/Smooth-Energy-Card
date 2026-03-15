@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -149,6 +149,24 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.2.1 (2026-03-15)
+- Animated bezier charging cable between V2C charger and charging EV
+- Prominent cost display on charger card: FREE ☀️ / mixed / grid-only
+- CSS hover tooltips on all key values (stats, battery rings, ETA pills)
+- Config backward-compatible: auto-migrates legacy `ev1_*`/`ev2_*` keys to `evs[]` array
+
+### v1.2.0 (2026-03-15)
+- Full visual config editor with `ha-entity-picker` (entity autocomplete)
+- EV config migrated to `evs[]` array — supports unlimited EVs
+- Dynamic add/remove EVs and smart plug devices from the editor
+
+### v1.1.0 (2026-03-15)
+- V2C charger animations: pulsing border, animated gradient bar, SVG ring pulse
+- EV charging animations: green pulsing border, CHG badge, green battery ring
+- ETA to charge goal pill (supports kW and %/h charging rate sensors)
+- Charging cost breakdown in charger card (solar vs grid contribution)
+- Target SoC arc on battery ring gauge
 
 ### v1.0.0 (2026-03-15)
 - Initial release
