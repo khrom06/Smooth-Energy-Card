@@ -1,0 +1,6 @@
+{
+  "name": "Smooth Energy Card",
+  "render_readme": true,
+  "homeassistant": "2023.1.0",
+  "filename": "smooth-energy-card.js"
+}
