@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.5.3
+ * Smooth Energy Card v1.5.4
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.5.3
+ * @version 1.5.4
  */
 
-const VERSION = '1.5.3';
+const VERSION = '1.5.4';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -572,7 +572,8 @@ class SmoothEnergyCard extends HTMLElement {
     const fcTomorrow    = numState(h, c.solar_forecast_tomorrow, null);
     const v2cSessionKwh = numState(h, c.v2c_session_energy, null);
 
-    const chargerActive = v2cW > 10;
+    const chargerActive = Math.abs(v2cW) > 10;
+    const v2gActive     = v2cW < -10; // EV discharging to home
 
     // Tempo
     const tempoToday    = c.tempo_color_today    ? strState(h, c.tempo_color_today)    : null;
@@ -640,6 +641,7 @@ class SmoothEnergyCard extends HTMLElement {
       importKwhDay, exportKwhDay, selfConsumedKwh, costToday, savingsToday, revenueToday,
       battW, battSoc, battCharging, battDischarging, hasBattery,
       liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
+      v2gActive,
     };
   }
 
@@ -742,9 +744,13 @@ class SmoothEnergyCard extends HTMLElement {
       if (chargerImg) chargerImg.className = `v2c-img${active ? ' plugged' : ''}`;
 
       const content = chargerCard.querySelector('[data-uid="charger-content"]');
-      if (content) content.innerHTML = active
-        ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
-        : `<div class="charger-idle">Idle</div>`;
+      if (content) content.innerHTML = d.v2gActive
+        ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">↑ Discharging to home</div>`
+        : (active
+          ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
+          : `<div class="charger-idle">Idle</div>`);
+      const nameEl = chargerCard.querySelector('.ev-name');
+      if (nameEl) nameEl.textContent = d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger';
     }
 
     // EV cards
@@ -1031,11 +1037,12 @@ class SmoothEnergyCard extends HTMLElement {
     const R=44, Rv=28;
     const bP={x:58,y:175};
     const Rb=26;
-    const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=d.v2cW>10;
+    const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=Math.abs(d.v2cW)>10;
     const sPth=`M${sP.x},${sP.y} C${(sP.x+hP.x)/2-10},${sP.y} ${(sP.x+hP.x)/2+10},${hP.y} ${hP.x},${hP.y}`;
     const iPth=`M${gP.x},${gP.y} C${(gP.x+hP.x)/2+10},${gP.y} ${(gP.x+hP.x)/2-10},${hP.y} ${hP.x},${hP.y}`;
     const ePth=`M${hP.x},${hP.y} C${(hP.x+gP.x)/2-10},${hP.y} ${(hP.x+gP.x)/2+10},${gP.y} ${gP.x},${gP.y}`;
     const vPth=`M${hP.x},${hP.y} L${vP.x},${vP.y}`;
+    const vPthV2g=`M${vP.x},${vP.y} L${hP.x},${hP.y}`;
     const bChgPth=`M${hP.x},${hP.y} C${(bP.x+hP.x)/2},${hP.y} ${(bP.x+hP.x)/2},${bP.y} ${bP.x},${bP.y}`;
     const bDisPth=`M${bP.x},${bP.y} C${(bP.x+hP.x)/2},${bP.y} ${(bP.x+hP.x)/2},${hP.y} ${hP.x},${hP.y}`;
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
@@ -1112,7 +1119,10 @@ class SmoothEnergyCard extends HTMLElement {
       ${sOn?`<path id="pSolar" class="track t-solar" d="${sPth}"/>`:''}
       ${iOn?`<path id="pImp" class="track t-imp" d="${iPth}"/>`:''}
       ${eOn?`<path id="pExp" class="track t-exp" d="${ePth}"/>`:''}
-      ${vOn?`<path id="pV2c" class="track t-v2c" d="${vPth}"/>`:''}
+      ${d.v2gActive
+        ? `<path id="pV2g" class="track" style="stroke:#34d399;opacity:0.35" d="${vPthV2g}"/>`
+        : (vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
+      }
       <g id="particles"></g>
       <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
@@ -1130,13 +1140,19 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${gP.x}" y="${gP.y+7}" class="n-power ${gClass}">${fmtW(Math.abs(d.gridW))}</text>
       <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?'EXPORT':'IMPORT'}</text>
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
-      <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?'orb-v2c':'orb-v2c-off'})" stroke="${vOn?'#c084fc':'#2a1a5a'}" stroke-width="1.5"/>
+      <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
-      <text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
-      ${vOn
-        ?`<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${fmtW(d.v2cW)}</text>
-          ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#fbbf24;font-size:7px">☀️${vSolarPct}% free</text>`:''}`
-        :`<text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C</text>`}
+      ${d.v2gActive
+        ? `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#34d399" class="v2c-bolt-active">⚡</text>
+           <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#34d399;font-size:7.5px">${fmtW(Math.abs(d.v2cW))}</text>
+           <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#34d399;font-size:7px">▲ V2G</text>`
+        : `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
+           ${vOn
+             ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${fmtW(d.v2cW)}</text>
+                ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#fbbf24;font-size:7px">☀️${vSolarPct}% free</text>`:''}`
+             : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C</text>`}
+        `
+      }
       ${d.hasBattery ? `
         ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
@@ -1162,14 +1178,17 @@ class SmoothEnergyCard extends HTMLElement {
     const img = c.v2c_image
       ? `<img src="${c.v2c_image}" class="v2c-img${active?' plugged':''}" alt="V2C" onerror="this.style.display='none'">`
       : `<div style="width:32px;height:32px;color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
+    const content = d.v2gActive
+      ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">↑ Discharging to home</div>`
+      : (active
+        ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
+        : `<div class="charger-idle">Idle</div>`);
     return `
       <div class="ev-card ev-charger${active?' plugged':''}" data-tip="${active?'':'V2C Charger\nIdle — no vehicle connected'}">
-        <div class="ev-name">V2C Charger</div>
+        <div class="ev-name">${d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger'}</div>
         ${img}
         <div data-uid="charger-content">
-          ${active
-            ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
-            : `<div class="charger-idle">Idle</div>`}
+          ${content}
         </div>
       </div>`;
   }
@@ -1223,7 +1242,7 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _drawChargingCable(shadow, d) {
-    if (!d.chargerActive) return;
+    if (!d.chargerActive || d.v2gActive) return;
     const chargingIdx = d.evData.findIndex(ev => ev.isCharging);
     if (chargingIdx < 0) return;
 
@@ -1306,7 +1325,7 @@ class SmoothEnergyCard extends HTMLElement {
       { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
       { id:'pImp',    col:'#f87171', w:d.gridImpW,          active:d.gridImpW>20 },
       { id:'pExp',    col:'#34d399', w:d.gridExpW,          active:d.gridExpW>20 },
-      { id:'pV2c',    col:'#c084fc', w:d.v2cW,              active:d.v2cW>10 },
+      { id: d.v2gActive ? 'pV2g' : 'pV2c', col: d.v2gActive ? '#34d399' : '#c084fc', w: Math.abs(d.v2cW), active: Math.abs(d.v2cW) > 10 },
       { id:'pBatChg', col:'#34d399', w:d.battW,             active:d.battCharging },
       { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
     ].filter(f => f.active).forEach(flow => {
