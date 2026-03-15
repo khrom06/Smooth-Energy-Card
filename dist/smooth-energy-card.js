@@ -771,7 +771,7 @@ class SmoothEnergyCard extends HTMLElement {
         if (ev.isCharging && !badge) {
           badge = document.createElement('div');
           badge.className = 'charging-badge';
-          badge.textContent = '⚡ CHG';
+          badge.textContent = '⚡';
           imgWrap.appendChild(badge);
         } else if (!ev.isCharging && badge) {
           badge.remove();
@@ -1202,7 +1202,7 @@ class SmoothEnergyCard extends HTMLElement {
     const targetArc = (targetOffset != null && ev.isCharging)
       ? `<circle cx="28" cy="28" r="${r}" fill="none" stroke="rgba(52,211,153,0.35)" stroke-width="6" stroke-linecap="round" stroke-dasharray="3 ${(circ-3).toFixed(2)}" stroke-dashoffset="${(targetOffset-1.5).toFixed(2)}" style="pointer-events:none"/>` : '';
     const imgEl = ev.image
-      ? `<div class="car-img-wrap"><img src="${ev.image}" alt="${ev.name}" loading="lazy" onerror="this.parentElement.style.display='none'">${ev.isCharging?`<div class="charging-badge">⚡ CHG</div>`:''}</div>` : '';
+      ? `<div class="car-img-wrap"><img src="${ev.image}" alt="${ev.name}" loading="lazy" onerror="this.parentElement.style.display='none'">${ev.isCharging?`<div class="charging-badge">⚡</div>`:''}</div>` : '';
     const etaLine = (ev.isCharging && ev.eta)
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
     const batTip = [
