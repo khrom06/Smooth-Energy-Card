@@ -349,6 +349,10 @@ const CSS = `
   :host([theme="light"]) .track { opacity:0.18; }
   :host([theme="light"]) [data-tip]::after { background:rgba(241,245,249,0.98); color:#1e293b; border-color:rgba(59,130,246,0.2); box-shadow:0 4px 16px rgba(0,0,0,0.1); }
   :host([theme="light"]) [data-tip]::before { border-top-color:rgba(59,130,246,0.2); }
+
+  /* ── SPARKLINES ── */
+  .stat { position:relative; }
+  .spark { position:absolute; bottom:4px; left:4px; right:4px; pointer-events:none; opacity:0.7; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -427,6 +431,12 @@ class SmoothEnergyCard extends HTMLElement {
     } else {
       const d = this._data();
       if (d) this._patch(d);
+    }
+    // Fetch sparklines at most every 5 minutes
+    const now = Date.now();
+    if (!this._lastSparkFetch || now - this._lastSparkFetch > 5 * 60 * 1000) {
+      this._lastSparkFetch = now;
+      this._fetchSparklines();
     }
   }
   getCardSize() { return 8; }
@@ -520,6 +530,7 @@ class SmoothEnergyCard extends HTMLElement {
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
       this._domReady = true;
       requestAnimationFrame(() => this._setupTapHandlers(shadow));
+      this._fetchSparklines();
     }
   }
 
@@ -698,9 +709,9 @@ class SmoothEnergyCard extends HTMLElement {
       costClass = d.costH < 0 ? 'st-earn' : 'st-cost';
     }
     return `
-      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">Solar Today</div></div>
+      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">Solar Today</div><div class="spark" data-uid="spark-solar"></div></div>
       <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">Forecast ☀️</div></div>
-      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?'Exporting':'Importing'}</div></div>
+      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?'Exporting':'Importing'}</div><div class="spark" data-uid="spark-grid"></div></div>
       <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?'🌿 Earning':costStr}</div><div class="sl">Est. Cost</div></div>`;
   }
 
@@ -1062,6 +1073,77 @@ class SmoothEnergyCard extends HTMLElement {
       const dev = (c.devices || [])[i];
       if (dev?.entity) tile.addEventListener('click', () => this._moreInfo(dev.entity));
     });
+  }
+
+  async _fetchSparklines() {
+    const h = this._hass, c = this._config;
+    if (!h || !c) return;
+    const entities = [c.solar_power, c.grid_power, c.house_power].filter(Boolean);
+    if (!entities.length) return;
+    const now = new Date();
+    const start = new Date(now - 6 * 3600 * 1000);
+    try {
+      const raw = await h.callApi('GET',
+        `history/period/${start.toISOString()}?filter_entity_id=${entities.join(',')}&minimal_response=true&no_attributes=true`
+      );
+      if (!Array.isArray(raw)) return;
+      this._sparkData = {};
+      raw.forEach(series => {
+        if (!series.length) return;
+        const eid = series[0].entity_id;
+        // Convert to watts, sample up to 60 points
+        const unit = (h.states[eid]?.attributes?.unit_of_measurement) || '';
+        const pts = series
+          .filter(s => s.state !== 'unavailable' && s.state !== 'unknown')
+          .map(s => { const v = parseFloat(s.state); return unit === 'kW' ? v * 1000 : v; })
+          .filter(v => !isNaN(v));
+        // Downsample to max 60 points
+        if (pts.length > 60) {
+          const step = pts.length / 60;
+          this._sparkData[eid] = Array.from({ length: 60 }, (_, i) => pts[Math.floor(i * step)]);
+        } else {
+          this._sparkData[eid] = pts;
+        }
+      });
+      this._renderSparklines();
+    } catch (e) {
+      // History API not available or failed, silently skip
+    }
+  }
+
+  _renderSparklines() {
+    const shadow = this.shadowRoot;
+    if (!shadow || !this._sparkData) return;
+    const c = this._config;
+    const map = [
+      { uid:'spark-solar', entity: c.solar_power, color:'#fbbf24' },
+      { uid:'spark-grid',  entity: c.grid_power,  color:'#f87171' },
+      { uid:'spark-house', entity: c.house_power,  color:'#60a5fa' },
+    ];
+    map.forEach(({ uid, entity, color }) => {
+      const el = shadow.querySelector(`[data-uid="${uid}"]`);
+      if (!el || !entity || !this._sparkData[entity]) return;
+      el.innerHTML = this._buildSparkSvg(this._sparkData[entity], color);
+    });
+  }
+
+  _buildSparkSvg(pts, color) {
+    if (!pts || pts.length < 2) return '';
+    const W = 60, H = 18;
+    const min = Math.min(...pts), max = Math.max(...pts);
+    const range = max - min || 1;
+    const coords = pts.map((v, i) => {
+      const x = (i / (pts.length - 1)) * W;
+      const y = H - ((v - min) / range) * H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const poly = coords.join(' ');
+    // Area fill: close the path
+    const area = `${coords[0].split(',')[0]},${H} ${poly} ${coords[coords.length-1].split(',')[0]},${H}`;
+    return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;overflow:visible">
+      <polygon points="${area}" fill="${color}" opacity="0.12"/>
+      <polyline points="${poly}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+    </svg>`;
   }
 }
 
