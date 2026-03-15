@@ -313,6 +313,42 @@ const CSS = `
 
   /* ── TAP CURSOR ── */
   .ev-card, .device { cursor:pointer; }
+
+  /* ── LIGHT THEME ── */
+  :host([theme="light"]) .card { background:linear-gradient(160deg,#f0f6ff 0%,#ffffff 60%,#f8faff 100%); color:#1e293b; border-color:rgba(59,130,246,0.12); box-shadow:0 8px 32px rgba(59,130,246,0.08); }
+  :host([theme="light"]) .title-block .title { background:linear-gradient(120deg,#2563eb,#7c3aed,#9333ea); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  :host([theme="light"]) .title-block .subtitle { color:#94a3b8; }
+  :host([theme="light"]) .price-pill { background:rgba(37,99,235,0.07); border-color:rgba(37,99,235,0.2); }
+  :host([theme="light"]) .price-pill .val { color:#2563eb; }
+  :host([theme="light"]) .price-pill .lbl { color:#94a3b8; }
+  :host([theme="light"]) .stat { background:rgba(0,0,0,0.025); border-color:rgba(0,0,0,0.07); }
+  :host([theme="light"]) .stat .sl { color:#94a3b8; }
+  :host([theme="light"]) .surplus { background:linear-gradient(90deg,rgba(16,185,129,0.07),rgba(5,150,105,0.03)); border-color:rgba(16,185,129,0.25); }
+  :host([theme="light"]) .section-title { color:#94a3b8; }
+  :host([theme="light"]) .ev-card { background:rgba(0,0,0,0.025); border-color:rgba(0,0,0,0.08); }
+  :host([theme="light"]) .ev-name { color:#64748b; }
+  :host([theme="light"]) .ev-range { color:#475569; }
+  :host([theme="light"]) .bat-text { color:#1e293b; }
+  :host([theme="light"]) .bat-text sub { color:#94a3b8; }
+  :host([theme="light"]) .bat-bg { stroke:rgba(0,0,0,0.08); }
+  :host([theme="light"]) .charger-sub { color:#94a3b8; }
+  :host([theme="light"]) .charger-idle { color:#cbd5e1; }
+  :host([theme="light"]) .charge-cost-block { background:rgba(124,58,237,0.04); border-color:rgba(124,58,237,0.15); }
+  :host([theme="light"]) .device { background:rgba(0,0,0,0.02); border-color:rgba(0,0,0,0.06); }
+  :host([theme="light"]) .device.on { background:rgba(251,191,36,0.05); border-color:rgba(251,191,36,0.2); }
+  :host([theme="light"]) .dev-name { color:#64748b; }
+  :host([theme="light"]) .dev-power { color:#475569; }
+  :host([theme="light"]) .dev-icon.off { color:#cbd5e1; }
+  :host([theme="light"]) .ds-tile { background:rgba(0,0,0,0.02); border-color:rgba(0,0,0,0.06); }
+  :host([theme="light"]) .ds-tile .dl { color:#94a3b8; }
+  :host([theme="light"]) .tempo-note { color:#64748b; }
+  :host([theme="light"]) .tempo-tomorrow { color:#94a3b8; }
+  :host([theme="light"]) .forecast-row { color:#94a3b8; }
+  :host([theme="light"]) .n-ring { fill:#f8faff; }
+  :host([theme="light"]) .n-name { fill:#94a3b8; }
+  :host([theme="light"]) .track { opacity:0.18; }
+  :host([theme="light"]) [data-tip]::after { background:rgba(241,245,249,0.98); color:#1e293b; border-color:rgba(59,130,246,0.2); box-shadow:0 4px 16px rgba(0,0,0,0.1); }
+  :host([theme="light"]) [data-tip]::before { border-top-color:rgba(59,130,246,0.2); }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
