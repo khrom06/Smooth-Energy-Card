@@ -299,6 +299,7 @@ class SmoothEnergyCard extends HTMLElement {
     this._hass = null;
     this._particleTimers = [];
     this._animFrames = [];
+    this._domReady = false;
   }
 
   static getConfigElement() { return document.createElement('smooth-energy-card-editor'); }
@@ -339,10 +340,19 @@ class SmoothEnergyCard extends HTMLElement {
     this._config = { ...def, ...migrated };
     if (migrated.devices !== undefined) this._config.devices = migrated.devices;
     if (migrated.evs !== undefined) this._config.evs = migrated.evs;
+    this._domReady = false;
     this._render();
   }
 
-  set hass(hass) { this._hass = hass; this._render(); }
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._domReady) {
+      this._render();
+    } else {
+      const d = this._data();
+      if (d) this._patch(d);
+    }
+  }
   getCardSize() { return 8; }
   disconnectedCallback() { this._clearParticles(); }
 
@@ -416,47 +426,235 @@ class SmoothEnergyCard extends HTMLElement {
       this._startParticles(shadow, d);
       // Draw cable after layout is painted
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
+      this._domReady = true;
     }
   }
 
-  _buildCard(d) {
-    const c = this._config;
-    const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
-    const hasSurplus = d.surplusW > 50;
+  _patch(d) {
+    const shadow = this.shadowRoot;
+    const card = shadow.querySelector('.card');
+    if (!card) { this._render(); return; }
+
+    // Price pill
+    const priceVal = card.querySelector('[data-uid="price-val"]');
+    if (priceVal) priceVal.textContent = d.price != null ? d.price.toFixed(3) + ' €' : '—';
+
+    // Flow SVG — rebuild (no persistent CSS animations live inside SVG)
+    const flowWrap = card.querySelector('[data-uid="flow-wrap"]');
+    if (flowWrap) flowWrap.innerHTML = this._buildFlowSVG(d);
+
+    // Surplus banner
+    const surplusWrap = card.querySelector('[data-uid="surplus-wrap"]');
+    if (surplusWrap) surplusWrap.innerHTML = d.surplusW > 50
+      ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : '';
+
+    // Stats
+    const statsEl = card.querySelector('[data-uid="stats"]');
+    if (statsEl) statsEl.innerHTML = this._buildStats(d);
+
+    // EV section — update in-place to preserve running CSS animations
+    this._patchEvGrid(card, d);
+
+    // Devices
+    const devicesGrid = card.querySelector('[data-uid="devices-grid"]');
+    if (devicesGrid) devicesGrid.innerHTML = d.devices.map(dev => this._buildDevice(dev)).join('');
+
+    // Forecast
+    const forecastEl = card.querySelector('[data-uid="forecast-row"]');
+    if (forecastEl) forecastEl.innerHTML = this._buildForecast(d);
+
+    // Particles + cable
+    this._clearParticles();
+    this._startParticles(shadow, d);
+    requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
+  }
+
+  _patchEvGrid(card, d) {
+    // Charger card
+    const chargerCard = card.querySelector('.ev-charger');
+    if (chargerCard) {
+      const active = d.chargerActive;
+      if (active) chargerCard.classList.add('plugged');
+      else chargerCard.classList.remove('plugged');
+
+      if (!active) chargerCard.setAttribute('data-tip', 'V2C Charger\nIdle — no vehicle connected');
+      else chargerCard.removeAttribute('data-tip');
+
+      const chargerImg = chargerCard.querySelector('.v2c-img');
+      if (chargerImg) chargerImg.className = `v2c-img${active ? ' plugged' : ''}`;
+
+      const content = chargerCard.querySelector('[data-uid="charger-content"]');
+      if (content) content.innerHTML = active
+        ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
+        : `<div class="charger-idle">Idle</div>`;
+    }
+
+    // EV cards
+    const evCards = Array.from(card.querySelectorAll('.ev-card:not(.ev-charger)'));
+    d.evData.forEach((ev, i) => {
+      const evCard = evCards[i];
+      if (!evCard) return;
+
+      if (ev.isCharging) evCard.classList.add('ev-is-charging');
+      else evCard.classList.remove('ev-is-charging');
+
+      const nameEl = evCard.querySelector('.ev-name');
+      if (nameEl) nameEl.textContent = ev.name + (ev.isCharging ? ' ⚡' : '');
+
+      const imgWrap = evCard.querySelector('.car-img-wrap');
+      if (imgWrap) {
+        let badge = imgWrap.querySelector('.charging-badge');
+        if (ev.isCharging && !badge) {
+          badge = document.createElement('div');
+          badge.className = 'charging-badge';
+          badge.textContent = '⚡ CHG';
+          imgWrap.appendChild(badge);
+        } else if (!ev.isCharging && badge) {
+          badge.remove();
+        }
+      }
+
+      // Battery ring
+      const r = 22, circ = 2 * Math.PI * r;
+      const offset = circ * (1 - ev.bat / 100);
+      const col = ev.bat > 50 ? '#34d399' : ev.bat > 20 ? '#fbbf24' : '#f87171';
+      const fillCircle = evCard.querySelector('.bat-fill');
+      if (fillCircle) {
+        fillCircle.setAttribute('stroke-dashoffset', offset.toFixed(2));
+        fillCircle.setAttribute('stroke', ev.isCharging ? '#34d399' : col);
+      }
+      const batTextNode = evCard.querySelector('.bat-text');
+      if (batTextNode && batTextNode.childNodes[0]) batTextNode.childNodes[0].textContent = ev.bat;
+
+      // Target SoC arc
+      const targetOffset = ev.targetSoc != null ? circ * (1 - ev.targetSoc / 100) : null;
+      const ringSvg = evCard.querySelector('.bat-ring svg');
+      let existingArc = ringSvg && ringSvg.querySelector('.target-arc');
+      if (targetOffset != null && ev.isCharging) {
+        if (existingArc) {
+          existingArc.setAttribute('stroke-dashoffset', (targetOffset - 1.5).toFixed(2));
+        } else if (ringSvg) {
+          const arc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          arc.classList.add('target-arc');
+          arc.setAttribute('cx', '28'); arc.setAttribute('cy', '28'); arc.setAttribute('r', r);
+          arc.setAttribute('fill', 'none'); arc.setAttribute('stroke', 'rgba(52,211,153,0.35)');
+          arc.setAttribute('stroke-width', '6'); arc.setAttribute('stroke-linecap', 'round');
+          arc.setAttribute('stroke-dasharray', `3 ${(circ - 3).toFixed(2)}`);
+          arc.setAttribute('stroke-dashoffset', (targetOffset - 1.5).toFixed(2));
+          arc.style.pointerEvents = 'none';
+          ringSvg.appendChild(arc);
+        }
+      } else if (existingArc) {
+        existingArc.remove();
+      }
+
+      // Range
+      const rangeEl = evCard.querySelector('.ev-range');
+      if (rangeEl) {
+        rangeEl.setAttribute('data-tip', `${ev.rng} km range\n≈ ${Math.round(ev.rng / 6)} h driving`);
+        rangeEl.innerHTML = `${ev.rng} <em>km</em>`;
+      }
+
+      // ETA
+      let etaEl = evCard.querySelector('.ev-eta');
+      if (ev.isCharging && ev.eta) {
+        const etaText = `🏁 ${ev.eta}${ev.targetSoc != null ? ' → ' + ev.targetSoc + '%' : ''}`;
+        if (etaEl) etaEl.textContent = etaText;
+        else {
+          etaEl = document.createElement('div');
+          etaEl.className = 'ev-eta';
+          etaEl.textContent = etaText;
+          evCard.appendChild(etaEl);
+        }
+      } else if (etaEl) {
+        etaEl.remove();
+      }
+
+      // Battery ring tooltip
+      const batRing = evCard.querySelector('.bat-ring');
+      if (batRing) {
+        const batTip = [
+          ev.name, `Battery: ${ev.bat}%`, `Range: ${ev.rng} km`,
+          ev.targetSoc != null ? `Target SoC: ${ev.targetSoc}%` : '',
+          ev.isCharging && ev.eta ? `ETA: ${ev.eta}` : '',
+          ev.isCharging ? 'Charging via V2C' : '',
+        ].filter(Boolean).join('\n');
+        batRing.setAttribute('data-tip', batTip);
+      }
+    });
+  }
+
+  _buildStats(d) {
     let costClass = 'st-cost', costStr = '—';
     if (d.costH != null) {
       costStr = fmtEur(Math.abs(d.costH)) + '/h';
       costClass = d.costH < 0 ? 'st-earn' : 'st-cost';
     }
     return `
+      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">Solar Today</div></div>
+      <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">Forecast ☀️</div></div>
+      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?'Exporting':'Importing'}</div></div>
+      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?'🌿 Earning':costStr}</div><div class="sl">Est. Cost</div></div>`;
+  }
+
+  _buildForecast(d) {
+    return `
+      <div class="fc-item"><div class="fc-dot" style="background:#fbbf24"></div><span>Today: ${fmtKwh(d.fcToday)}</span></div>
+      <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>Tomorrow: ${fmtKwh(d.fcTomorrow)}</span></div>`;
+  }
+
+  _buildChargerCostDisplay(d) {
+    if (!d.chargerActive) return '';
+    const isFree = d.gridChargeW < 10;
+    const isMixed = d.solarFreeW > 10 && d.gridChargeW > 10;
+    const solarPct = d.v2cW > 0 ? Math.round((d.solarFreeW / d.v2cW) * 100) : 0;
+    const tipLines = [
+      `Power: ${fmtW(d.v2cW)}`,
+      `☀️ Solar: ${fmtW(d.solarFreeW)} (free)`,
+      `⚡ Grid: ${fmtW(d.gridChargeW)}`,
+      d.chargeCostH != null ? `Rate: ${d.chargeCostH.toFixed(3)} €/h` : '',
+      d.v2cSessionKwh > 0 ? `Session: ${fmtKwh(d.v2cSessionKwh)}` : '',
+      d.sessionCostEst != null ? `Session cost: ~${d.sessionCostEst.toFixed(2)} €` : '',
+    ].filter(Boolean).join('\n');
+    let out = '';
+    if (isFree) {
+      out = `<div class="cost-free" data-tip="${tipLines}">☀️ FREE</div><div class="cost-mixed">100% solar power</div>`;
+    } else if (isMixed) {
+      const est = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '');
+      out = `<div class="cost-paid" data-tip="${tipLines}">${est}</div><div class="cost-mixed">☀️ ${solarPct}% free · ⚡ ${100-solarPct}% grid</div>`;
+    } else {
+      const est = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '—');
+      out = `<div class="cost-paid" data-tip="${tipLines}">${est}</div><div class="cost-mixed">⚡ Grid only</div>`;
+    }
+    if (d.v2cSessionKwh > 0) out += `<div style="font-size:0.58em;color:#4a3a7a;margin-top:2px">Session: ${fmtKwh(d.v2cSessionKwh)}</div>`;
+    return out;
+  }
+
+  _buildCard(d) {
+    const c = this._config;
+    const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
+    const hasSurplus = d.surplusW > 50;
+    return `
       <div class="header">
         <div class="title-block">
           <div class="title">${c.title || 'Energy'}</div>
           <div class="subtitle">⚡ Live energy monitor · v${VERSION}</div>
         </div>
-        <div class="price-pill"><div class="val">${priceStr}</div><div class="lbl">€/kWh</div></div>
+        <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
       </div>
-      <div class="flow-wrap">${this._buildFlowSVG(d)}</div>
-      ${hasSurplus ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}
-      <div class="stats">
-        <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">Solar Today</div></div>
-        <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">Forecast ☀️</div></div>
-        <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?'Exporting':'Importing'}</div></div>
-        <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?'🌿 Earning':costStr}</div><div class="sl">Est. Cost</div></div>
-      </div>
+      <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
+      <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
+      <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div class="ev-section">
         <div class="section-title">Electric Vehicles &amp; Charger</div>
-        <div class="ev-grid">
+        <div class="ev-grid" data-uid="ev-grid">
           ${this._buildCharger(d)}
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
       </div>
       <div class="section-title">Device Consumption</div>
-      <div class="devices-grid">${d.devices.map(dev => this._buildDevice(dev)).join('')}</div>
-      <div class="forecast-row">
-        <div class="fc-item"><div class="fc-dot" style="background:#fbbf24"></div><span>Today: ${fmtKwh(d.fcToday)}</span></div>
-        <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>Tomorrow: ${fmtKwh(d.fcTomorrow)}</span></div>
-      </div>`;
+      <div class="devices-grid" data-uid="devices-grid">${d.devices.map(dev => this._buildDevice(dev)).join('')}</div>
+      <div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>`;
   }
 
   _buildFlowSVG(d) {
@@ -515,51 +713,15 @@ class SmoothEnergyCard extends HTMLElement {
     const img = c.v2c_image
       ? `<img src="${c.v2c_image}" class="v2c-img${active?' plugged':''}" alt="V2C" onerror="this.style.display='none'">`
       : `<div style="width:32px;height:32px;color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
-
-    let costDisplay = '';
-    if (active) {
-      const isFree = d.gridChargeW < 10; // nearly all solar
-      const isMixed = d.solarFreeW > 10 && d.gridChargeW > 10;
-
-      const solarPct = d.v2cW > 0 ? Math.round((d.solarFreeW / d.v2cW) * 100) : 0;
-      const tipLines = [
-        `Power: ${fmtW(d.v2cW)}`,
-        `☀️ Solar: ${fmtW(d.solarFreeW)} (free)`,
-        `⚡ Grid: ${fmtW(d.gridChargeW)}`,
-        d.chargeCostH != null ? `Rate: ${d.chargeCostH.toFixed(3)} €/h` : '',
-        d.v2cSessionKwh > 0 ? `Session: ${fmtKwh(d.v2cSessionKwh)}` : '',
-        d.sessionCostEst != null ? `Session cost: ~${d.sessionCostEst.toFixed(2)} €` : '',
-      ].filter(Boolean).join('\n');
-
-      if (isFree) {
-        costDisplay = `
-          <div class="cost-free" data-tip="${tipLines}">☀️ FREE</div>
-          <div class="cost-mixed">100% solar power</div>`;
-      } else if (isMixed) {
-        const estCostStr = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '');
-        costDisplay = `
-          <div class="cost-paid" data-tip="${tipLines}">${estCostStr}</div>
-          <div class="cost-mixed">☀️ ${solarPct}% free · ⚡ ${100-solarPct}% grid</div>`;
-      } else {
-        const estCostStr = d.sessionCostEst != null ? `~${d.sessionCostEst.toFixed(2)} €` : (d.chargeCostH != null ? `${d.chargeCostH.toFixed(3)} €/h` : '—');
-        costDisplay = `
-          <div class="cost-paid" data-tip="${tipLines}">${estCostStr}</div>
-          <div class="cost-mixed">⚡ Grid only</div>`;
-      }
-
-      if (d.v2cSessionKwh > 0) {
-        costDisplay += `<div style="font-size:0.58em;color:#4a3a7a;margin-top:2px">Session: ${fmtKwh(d.v2cSessionKwh)}</div>`;
-      }
-    }
-
-    const tipIdle = 'V2C Charger\nNo vehicle connected';
     return `
       <div class="ev-card ev-charger${active?' plugged':''}" data-tip="${active?'':'V2C Charger\nIdle — no vehicle connected'}">
         <div class="ev-name">V2C Charger</div>
         ${img}
-        ${active
-          ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${costDisplay}`
-          : `<div class="charger-idle">Idle</div>`}
+        <div data-uid="charger-content">
+          ${active
+            ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">Charging…</div>${this._buildChargerCostDisplay(d)}`
+            : `<div class="charger-idle">Idle</div>`}
+        </div>
       </div>`;
   }
 
