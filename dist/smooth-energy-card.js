@@ -586,8 +586,10 @@ class SmoothEnergyCard extends HTMLElement {
     const _rawExport    = c.grid_energy_export ? numState(h, c.grid_energy_export, null) : null;
     const importKwhDay  = (_rawImport  != null && _rawImport  < 300) ? _rawImport  : null;
     const exportKwhDay  = (_rawExport  != null && _rawExport  < 300) ? _rawExport  : null;
-    const selfConsumedKwh = (solarToday != null && exportKwhDay != null) ? Math.max(0, solarToday - exportKwhDay) : solarToday;
-    const costToday     = (importKwhDay  != null && price != null) ? importKwhDay * price : null;
+    // selfConsumedKwh requires BOTH solar_today AND grid_energy_export (daily reset).
+    // Without export data we cannot know how much solar stayed in the house, so null = don't show.
+    const selfConsumedKwh = (solarToday != null && exportKwhDay != null) ? Math.max(0, solarToday - exportKwhDay) : null;
+    const costToday     = (importKwhDay   != null && price != null) ? importKwhDay * price : null;
     const savingsToday  = (selfConsumedKwh != null && price != null) ? selfConsumedKwh * price : null;
     const feedIn        = parseFloat(c.feed_in_rate) || 0;
     const revenueToday  = (exportKwhDay != null && price != null && feedIn > 0) ? exportKwhDay * price * feedIn : null;
