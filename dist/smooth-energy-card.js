@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.2.1
+ * Smooth Energy Card v1.3.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.2.1
+ * @version 1.3.0
  */
 
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -281,6 +281,38 @@ const CSS = `
   .cost-mixed { font-size:0.72em; text-align:center; color:#a78bfa; line-height:1.6; }
 
   @media(max-width:380px){.ev-grid{grid-template-columns:1fr 1fr;}.stats{grid-template-columns:repeat(2,1fr);}.car-img-wrap{width:60px;height:34px;}}
+
+  /* ── TEMPO BANNER ── */
+  .tempo-banner { display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; margin-bottom:14px; border:1px solid; font-size:0.78em; flex-wrap:wrap; }
+  .tempo-banner.blue { background:rgba(59,130,246,0.08); border-color:rgba(59,130,246,0.25); }
+  .tempo-banner.white { background:rgba(255,255,255,0.04); border-color:rgba(200,200,220,0.2); }
+  .tempo-banner.red { background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.35); animation:tempo-red-pulse 2s ease-in-out infinite; }
+  @keyframes tempo-red-pulse { 0%,100%{border-color:rgba(239,68,68,0.35)} 50%{border-color:rgba(239,68,68,0.75)} }
+  .tempo-pill { border-radius:6px; padding:2px 9px; font-weight:800; font-size:1em; letter-spacing:0.5px; }
+  .tempo-pill.blue { background:rgba(59,130,246,0.18); color:#60a5fa; }
+  .tempo-pill.white { background:rgba(200,210,240,0.12); color:#e2e8f0; }
+  .tempo-pill.red { background:rgba(239,68,68,0.18); color:#f87171; }
+  .tempo-note { color:#4a5f8a; flex:1; font-size:0.95em; }
+  .tempo-tomorrow { font-size:0.9em; color:#3d5280; display:flex; align-items:center; gap:6px; }
+
+  /* ── DAILY SUMMARY ── */
+  .daily-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-bottom:14px; }
+  .ds-tile { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.05); border-radius:11px; padding:9px 6px; text-align:center; }
+  .ds-tile .dv { font-size:0.9em; font-weight:800; line-height:1; margin-bottom:3px; }
+  .ds-tile .dl { font-size:0.58em; font-weight:600; color:#3d5280; text-transform:uppercase; letter-spacing:0.5px; }
+  .ds-cost .dv { color:#f87171; }
+  .ds-save .dv { color:#34d399; }
+  .ds-rev .dv { color:#fbbf24; }
+
+  /* ── PRICE ALERT ── */
+  .price-pill.alert-high { border-color:rgba(248,113,113,0.5); }
+  .price-pill.alert-high .val { color:#f87171; animation:price-blink 1.2s ease-in-out infinite alternate; }
+  .price-pill.alert-low { border-color:rgba(52,211,153,0.4); }
+  .price-pill.alert-low .val { color:#34d399; }
+  @keyframes price-blink { from{opacity:1} to{opacity:0.45} }
+
+  /* ── TAP CURSOR ── */
+  .ev-card, .device { cursor:pointer; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -322,6 +354,14 @@ class SmoothEnergyCard extends HTMLElement {
         { name:'Cupra Tavascan', battery:'sensor.cupra_tavascan_battery_level', range:'sensor.cupra_tavascan_electric_range', image:'/local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png', charging:'binary_sensor.cupra_tavascan_charging_state', charging_power:'sensor.cupra_tavascan_charging_power', target_soc:'sensor.cupra_tavascan_target_state_of_charge', battery_capacity:77 },
         { name:'Fiat 500e', battery:'sensor.fiat_500e_berline_my24_hvbattery_charge', range:'sensor.fiat_500e_berline_my24_driving_range', image:'/local/images/Home/fiat500.jpg', charging:'', charging_rate:'sensor.fiat_500e_berline_my24_charging_rate', target_soc:'', battery_capacity:37.3 },
       ],
+      tempo_color_today: '',
+      tempo_color_tomorrow: '',
+      grid_energy_import: 'sensor.shelly_channel_1_energy',
+      grid_energy_export: 'sensor.shelly_channel_1_energy_returned',
+      feed_in_rate: 0,
+      price_alert_high: null,
+      price_alert_low: null,
+      theme: 'dark',
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
         { name:'Ballon ECS',    entity:'sensor.shelly2_channel_2_power', icon:'water' },
@@ -376,6 +416,19 @@ class SmoothEnergyCard extends HTMLElement {
 
     const chargerActive = v2cW > 10;
 
+    // Tempo
+    const tempoToday    = c.tempo_color_today    ? strState(h, c.tempo_color_today)    : null;
+    const tempoTomorrow = c.tempo_color_tomorrow ? strState(h, c.tempo_color_tomorrow) : null;
+
+    // Daily summary
+    const importKwhDay  = c.grid_energy_import ? numState(h, c.grid_energy_import, null) : null;
+    const exportKwhDay  = c.grid_energy_export ? numState(h, c.grid_energy_export, null) : null;
+    const selfConsumedKwh = (solarToday != null && exportKwhDay != null) ? Math.max(0, solarToday - exportKwhDay) : solarToday;
+    const costToday     = (importKwhDay  != null && price != null) ? importKwhDay * price : null;
+    const savingsToday  = (selfConsumedKwh != null && price != null) ? selfConsumedKwh * price : null;
+    const feedIn        = parseFloat(c.feed_in_rate) || 0;
+    const revenueToday  = (exportKwhDay != null && price != null && feedIn > 0) ? exportKwhDay * price * feedIn : null;
+
     // Process EVs
     let evData = (c.evs || []).map(ev => {
       const bat  = clamp(numState(h, ev.battery, 0), 0, 100);
@@ -407,6 +460,8 @@ class SmoothEnergyCard extends HTMLElement {
       solarFreeW, gridChargeW, chargeCostH, sessionCostEst, v2cSessionKwh,
       evData, devices,
       surplusW: Math.max(0, solarW - houseW - v2cW),
+      tempoToday, tempoTomorrow,
+      importKwhDay, exportKwhDay, selfConsumedKwh, costToday, savingsToday, revenueToday,
     };
   }
 
@@ -422,11 +477,13 @@ class SmoothEnergyCard extends HTMLElement {
     card.innerHTML = d ? this._buildCard(d) : `<div style="padding:30px;text-align:center;color:#3d5280;font-size:0.85em">Connecting to Home Assistant…</div>`;
     shadow.appendChild(card);
     if (d) {
+      this.setAttribute('theme', this._config.theme || 'dark');
       this._clearParticles();
       this._startParticles(shadow, d);
       // Draw cable after layout is painted
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
       this._domReady = true;
+      requestAnimationFrame(() => this._setupTapHandlers(shadow));
     }
   }
 
@@ -451,6 +508,20 @@ class SmoothEnergyCard extends HTMLElement {
     // Stats
     const statsEl = card.querySelector('[data-uid="stats"]');
     if (statsEl) statsEl.innerHTML = this._buildStats(d);
+
+    // Daily summary
+    const dailySummaryEl = card.querySelector('[data-uid="daily-summary"]');
+    if (dailySummaryEl) dailySummaryEl.innerHTML = this._buildDailySummary(d);
+
+    // Price alert classes
+    const pricePill = card.querySelector('.price-pill');
+    if (pricePill && d.price != null) {
+      const hi = parseFloat(this._config.price_alert_high);
+      const lo = parseFloat(this._config.price_alert_low);
+      pricePill.classList.remove('alert-high', 'alert-low');
+      if (!isNaN(hi) && d.price >= hi) pricePill.classList.add('alert-high');
+      else if (!isNaN(lo) && d.price <= lo) pricePill.classList.add('alert-low');
+    }
 
     // EV section — update in-place to preserve running CSS animations
     this._patchEvGrid(card, d);
@@ -603,6 +674,53 @@ class SmoothEnergyCard extends HTMLElement {
       <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>Tomorrow: ${fmtKwh(d.fcTomorrow)}</span></div>`;
   }
 
+  _buildTempoBanner(d) {
+    if (!d.tempoToday) return '';
+    const normalize = s => {
+      const l = (s || '').toLowerCase();
+      if (l.includes('bleu') || l.includes('blue')) return 'blue';
+      if (l.includes('blanc') || l.includes('white')) return 'white';
+      if (l.includes('rouge') || l.includes('red')) return 'red';
+      return null;
+    };
+    const todayColor    = normalize(d.tempoToday);
+    const tomorrowColor = d.tempoTomorrow ? normalize(d.tempoTomorrow) : null;
+    if (!todayColor) return '';
+    const labels = { blue:'BLEU', white:'BLANC', red:'ROUGE' };
+    const notes  = { blue:'Low tariff day', white:'Standard tariff day', red:'⚠️ Peak tariff — avoid heavy consumption' };
+    const tomorrowHtml = tomorrowColor
+      ? `<span class="tempo-tomorrow">Tomorrow: <span class="tempo-pill ${tomorrowColor}">${labels[tomorrowColor]}</span></span>` : '';
+    return `
+      <div class="tempo-banner ${todayColor}">
+        <span class="tempo-pill ${todayColor}">${labels[todayColor]}</span>
+        <span class="tempo-note">${notes[todayColor]}</span>
+        ${tomorrowHtml}
+      </div>`;
+  }
+
+  _buildDailySummary(d) {
+    if (d.costToday == null && d.savingsToday == null && d.revenueToday == null && d.exportKwhDay == null) return '';
+    const importTip  = `Grid import: ${d.importKwhDay != null ? d.importKwhDay.toFixed(2)+' kWh' : '—'}\n@ ${d.price != null ? d.price.toFixed(3)+' €/kWh' : '—'}`;
+    const saveTip    = `Solar self-consumed: ${d.selfConsumedKwh != null ? round1(d.selfConsumedKwh)+' kWh' : '—'}\nAvoided grid cost`;
+    const exportTip  = `Grid export: ${d.exportKwhDay != null ? d.exportKwhDay.toFixed(2)+' kWh' : '—'}${d.revenueToday != null ? '\nRevenue at feed-in rate' : ''}`;
+    return `
+      <div class="section-title">Today's Summary</div>
+      <div class="daily-summary">
+        <div class="ds-tile ds-cost" data-tip="${importTip}">
+          <div class="dv">${d.costToday != null ? d.costToday.toFixed(2)+' €' : '—'}</div>
+          <div class="dl">Cost Today</div>
+        </div>
+        <div class="ds-tile ds-save" data-tip="${saveTip}">
+          <div class="dv">${d.savingsToday != null ? d.savingsToday.toFixed(2)+' €' : '—'}</div>
+          <div class="dl">Solar Savings</div>
+        </div>
+        <div class="ds-tile ds-rev" data-tip="${exportTip}">
+          <div class="dv">${d.revenueToday != null ? d.revenueToday.toFixed(2)+' €' : (d.exportKwhDay != null ? round1(d.exportKwhDay)+' kWh ↑' : '—')}</div>
+          <div class="dl">${d.revenueToday != null ? 'Revenue' : 'Exported'}</div>
+        </div>
+      </div>`;
+  }
+
   _buildChargerCostDisplay(d) {
     if (!d.chargerActive) return '';
     const isFree = d.gridChargeW < 10;
@@ -642,9 +760,11 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
         <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
       </div>
+      ${this._buildTempoBanner(d)}
       <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
       <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
+      <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
       <div class="ev-section">
         <div class="section-title">Electric Vehicles &amp; Charger</div>
         <div class="ev-grid" data-uid="ev-grid">
@@ -884,6 +1004,28 @@ class SmoothEnergyCard extends HTMLElement {
       else dot.remove();
     };
     this._animFrames.push(requestAnimationFrame(step));
+  }
+
+  _moreInfo(entityId) {
+    this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
+  }
+
+  _setupTapHandlers(shadow) {
+    const c = this._config;
+    // Charger card
+    const chargerCard = shadow.querySelector('.ev-charger');
+    if (chargerCard && c.v2c_power) chargerCard.addEventListener('click', () => this._moreInfo(c.v2c_power));
+    // EV cards
+    shadow.querySelectorAll('.ev-card:not(.ev-charger)').forEach((card, i) => {
+      const ev = (c.evs || [])[i];
+      const entity = ev && (ev.battery || ev.range);
+      if (entity) card.addEventListener('click', () => this._moreInfo(entity));
+    });
+    // Device tiles
+    shadow.querySelectorAll('.device').forEach((tile, i) => {
+      const dev = (c.devices || [])[i];
+      if (dev?.entity) tile.addEventListener('click', () => this._moreInfo(dev.entity));
+    });
   }
 }
 
@@ -1138,6 +1280,67 @@ class SmoothEnergyCardEditor extends HTMLElement {
               <div class="field">
                 <label>Charger Image URL</label>
                 <input type="text" data-key="v2c_image" value="${(c.v2c_image||'').replace(/"/g,'&quot;')}" placeholder="/local/images/v2ctrydan-1.png">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEMPO & TARIFF -->
+        <div class="section">
+          <div class="section-head"><h3>🔴 EDF Tempo / Tariff Alerts</h3></div>
+          <div class="section-body">
+            <div class="row cols-2">
+              <div class="field">
+                <label>Tempo color — Today</label>
+                <ha-entity-picker data-key="tempo_color_today" allow-custom-entity></ha-entity-picker>
+                <span class="hint">State: "BLUE", "WHITE", "RED" (or French equivalents)</span>
+              </div>
+              <div class="field">
+                <label>Tempo color — Tomorrow</label>
+                <ha-entity-picker data-key="tempo_color_tomorrow" allow-custom-entity></ha-entity-picker>
+              </div>
+            </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Price alert — HIGH threshold (€/kWh)</label>
+                <input type="number" data-key="price_alert_high" value="${c.price_alert_high ?? ''}" step="0.01" min="0" placeholder="e.g. 0.20">
+                <span class="hint">Price pill blinks red above this value</span>
+              </div>
+              <div class="field">
+                <label>Price alert — LOW threshold (€/kWh)</label>
+                <input type="number" data-key="price_alert_low" value="${c.price_alert_low ?? ''}" step="0.01" min="0" placeholder="e.g. 0.05">
+                <span class="hint">Price pill turns green below this value</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAILY SUMMARY -->
+        <div class="section">
+          <div class="section-head"><h3>📊 Daily Cost Summary</h3></div>
+          <div class="section-body">
+            <div class="row cols-2">
+              <div class="field">
+                <label>Grid Energy Imported Today (kWh)</label>
+                <ha-entity-picker data-key="grid_energy_import" allow-custom-entity></ha-entity-picker>
+              </div>
+              <div class="field">
+                <label>Grid Energy Exported Today (kWh)</label>
+                <ha-entity-picker data-key="grid_energy_export" allow-custom-entity></ha-entity-picker>
+              </div>
+            </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Feed-in rate (fraction of import price)</label>
+                <input type="number" data-key="feed_in_rate" value="${c.feed_in_rate ?? 0}" step="0.01" min="0" max="1" placeholder="e.g. 0.1">
+                <span class="hint">0 = no export revenue shown. 0.1 = 10% of price.</span>
+              </div>
+              <div class="field">
+                <label>Theme</label>
+                <select data-key="theme">
+                  <option value="dark"${(c.theme||'dark')==='dark'?' selected':''}>🌙 Dark</option>
+                  <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
+                </select>
               </div>
             </div>
           </div>
