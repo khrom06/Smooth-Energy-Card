@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/roualin/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -28,13 +28,13 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 
 1. Open **HACS** → **Frontend**
 2. Click the **⋮ menu** → **Custom repositories**
-3. Add `https://github.com/roualin/Smooth-Energy-Card` as a **Lovelace** repository
+3. Add `https://github.com/khrom06/Smooth-Energy-Card` as a **Lovelace** repository
 4. Find **Smooth Energy Card** in the list and click **Download**
 5. Reload your browser
 
 ### Manual installation
 
-1. Download `smooth-energy-card.js` from the [latest release](https://github.com/roualin/Smooth-Energy-Card/releases/latest)
+1. Download `smooth-energy-card.js` from the [latest release](https://github.com/khrom06/Smooth-Energy-Card/releases/latest)
 2. Copy it to `config/www/community/smooth-energy-card/smooth-energy-card.js`
 3. In Home Assistant: **Settings → Dashboards → Resources** → Add resource:
    - URL: `/local/community/smooth-energy-card/smooth-energy-card.js`
