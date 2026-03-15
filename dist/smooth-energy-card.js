@@ -250,8 +250,8 @@ const CSS = `
   .flow-svg { width:100%; height:auto; display:block; overflow:visible; }
   .n-ring { fill:#0c1020; stroke-width:2.5; }
   .n-solar { stroke:#fbbf24; } .n-house { stroke:#60a5fa; } .n-grid { stroke:#6b7db8; } .n-v2c { stroke:#a78bfa; }
-  .n-name { font-size:9.5px; font-weight:700; fill:#4a5f8a; text-anchor:middle; letter-spacing:0.8px; dominant-baseline:auto; }
-  .n-power { font-size:12.5px; font-weight:800; text-anchor:middle; dominant-baseline:auto; }
+  .n-name  { font-size:9.5px;  font-weight:700; fill:rgba(255,255,255,0.75); text-anchor:middle; letter-spacing:0.8px; dominant-baseline:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+  .n-power { font-size:12.5px; font-weight:800; fill:white; text-anchor:middle; dominant-baseline:auto; filter:drop-shadow(0 1px 3px rgba(0,0,0,0.95)); }
   .c-solar{fill:#fbbf24;} .c-house{fill:#60a5fa;} .c-grid-imp{fill:#f87171;} .c-grid-exp{fill:#34d399;} .c-v2c{fill:#c084fc;} .c-idle{fill:#2a3558;}
   .track { fill:none; stroke-width:2.5; stroke-linecap:round; opacity:0.25; }
   .t-solar{stroke:#fbbf24;} .t-imp{stroke:#f87171;} .t-exp{stroke:#34d399;} .t-v2c{stroke:#c084fc;}
@@ -439,7 +439,8 @@ const CSS = `
   :host([theme="light"]) .tempo-tomorrow { color:#94a3b8; }
   :host([theme="light"]) .forecast-row { color:#94a3b8; }
   :host([theme="light"]) .n-ring { fill:#f8faff; }
-  :host([theme="light"]) .n-name { fill:#94a3b8; }
+  :host([theme="light"]) .n-name  { fill:rgba(255,255,255,0.9); filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7)); }
+  :host([theme="light"]) .n-power { fill:white; filter:drop-shadow(0 1px 3px rgba(0,0,0,0.85)); }
   :host([theme="light"]) .track { opacity:0.18; }
   :host([theme="light"]) [data-tip]::after { background:rgba(241,245,249,0.98); color:#1e293b; border-color:rgba(59,130,246,0.2); box-shadow:0 4px 16px rgba(0,0,0,0.1); }
   :host([theme="light"]) [data-tip]::before { border-top-color:rgba(59,130,246,0.2); }
@@ -1130,30 +1131,30 @@ class SmoothEnergyCard extends HTMLElement {
       <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}">☀️</text>
-      <text x="${sP.x}" y="${sP.y+7}" class="n-power ${sOn?'c-solar':'c-idle'}">${sOn?fmtW(d.solarW):'—'}</text>
+      <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+22}" class="n-name">SOLAR</text>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
-      <text x="${hP.x}" y="${hP.y+7}" class="n-power c-house">${fmtW(d.houseW)}</text>
+      <text x="${hP.x}" y="${hP.y+7}" class="n-power">${fmtW(d.houseW)}</text>
       <text x="${hP.x}" y="${hP.y+22}" class="n-name">HOUSE</text>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
-      <text x="${gP.x}" y="${gP.y+7}" class="n-power ${gClass}">${fmtW(Math.abs(d.gridW))}</text>
+      <text x="${gP.x}" y="${gP.y+7}" class="n-power">${fmtW(Math.abs(d.gridW))}</text>
       <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?'EXPORT':'IMPORT'}</text>
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
       <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
       ${d.v2gActive
         ? `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#34d399" class="v2c-bolt-active">⚡</text>
-           <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#34d399;font-size:7.5px">${fmtW(Math.abs(d.v2cW))}</text>
-           <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#34d399;font-size:7px">▲ V2G</text>`
+           <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.v2cW))}</text>
+           <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">▲ V2G</text>`
         : `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
            ${vOn
-             ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${fmtW(d.v2cW)}</text>
-                ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#fbbf24;font-size:7px">☀️${vSolarPct}% free</text>`:''}`
-             : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C</text>`}
+             ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(d.v2cW)}</text>
+                ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">☀️${vSolarPct}% free</text>`:''}`
+             : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" opacity="0.35" style="font-size:8px">V2C</text>`}
         `
       }
       ${d.hasBattery ? `
@@ -1164,13 +1165,13 @@ class SmoothEnergyCard extends HTMLElement {
         <circle cx="${bP.x-Rb*0.28}" cy="${bP.y-Rb*0.28}" r="${Rb*0.2}" fill="white" opacity="${(d.battCharging||d.battDischarging)?'0.28':'0.07'}"/>
         <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
         ${d.battSoc != null
-          ? `<text x="${bP.x}" y="${bP.y+9}" class="n-power" style="fill:#34d399;font-size:11px">${Math.round(d.battSoc)}%</text>`
-          : `<text x="${bP.x}" y="${bP.y+9}" class="n-name" style="fill:#1a3a28">BATT</text>`}
+          ? `<text x="${bP.x}" y="${bP.y+9}" class="n-power" style="font-size:11px">${Math.round(d.battSoc)}%</text>`
+          : `<text x="${bP.x}" y="${bP.y+9}" class="n-name" opacity="0.35">BATT</text>`}
         ${d.battCharging
-          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#34d399;font-size:7.5px">+${fmtW(d.battW)}</text>`
+          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="font-size:7.5px">+${fmtW(d.battW)}</text>`
           : d.battDischarging
-          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#34d399;font-size:7.5px">${fmtW(Math.abs(d.battW))}</text>`
-          : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#1a3a28;font-size:7.5px">IDLE</text>`}
+          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.battW))}</text>`
+          : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" opacity="0.35" style="font-size:7.5px">IDLE</text>`}
       ` : ''}
     </svg>`;
   }
