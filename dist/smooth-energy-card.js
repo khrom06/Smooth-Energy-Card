@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.3.0
+ * Smooth Energy Card v1.4.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.3.0
+ * @version 1.4.0
  */
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -353,6 +353,9 @@ const CSS = `
   /* ── SPARKLINES ── */
   .stat { position:relative; }
   .spark { position:absolute; bottom:4px; left:4px; right:4px; pointer-events:none; opacity:0.7; }
+
+  /* ── BATTERY NODE ── */
+  .n-bat { stroke:#34d399; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -402,6 +405,8 @@ class SmoothEnergyCard extends HTMLElement {
       price_alert_high: null,
       price_alert_low: null,
       theme: 'dark',
+      battery_power: '',
+      battery_soc: '',
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
         { name:'Ballon ECS',    entity:'sensor.shelly2_channel_2_power', icon:'water' },
@@ -489,6 +494,12 @@ class SmoothEnergyCard extends HTMLElement {
       evData[0] = { ...evData[0], isCharging: true };
     }
 
+    const battW   = c.battery_power ? toWatts(h, c.battery_power) : 0;
+    const battSoc = c.battery_soc   ? numState(h, c.battery_soc, null) : null;
+    const battCharging    = battW > 10;
+    const battDischarging = battW < -10;
+    const hasBattery = !!(c.battery_power || c.battery_soc);
+
     let costH = null;
     if (price != null) costH = (gridImpW/1000)*price - (gridExpW/1000)*price*0.11;
 
@@ -508,6 +519,7 @@ class SmoothEnergyCard extends HTMLElement {
       surplusW: Math.max(0, solarW - houseW - v2cW),
       tempoToday, tempoTomorrow,
       importKwhDay, exportKwhDay, selfConsumedKwh, costToday, savingsToday, revenueToday,
+      battW, battSoc, battCharging, battDischarging, hasBattery,
     };
   }
 
@@ -828,11 +840,15 @@ class SmoothEnergyCard extends HTMLElement {
     const W=360, H=210;
     const sP={x:58,y:62}, hP={x:180,y:105}, gP={x:302,y:62}, vP={x:180,y:185};
     const R=44, Rv=28;
+    const bP={x:58,y:175};
+    const Rb=26;
     const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=d.v2cW>10;
     const sPth=`M${sP.x},${sP.y} C${(sP.x+hP.x)/2-10},${sP.y} ${(sP.x+hP.x)/2+10},${hP.y} ${hP.x},${hP.y}`;
     const iPth=`M${gP.x},${gP.y} C${(gP.x+hP.x)/2+10},${gP.y} ${(gP.x+hP.x)/2-10},${hP.y} ${hP.x},${hP.y}`;
     const ePth=`M${hP.x},${hP.y} C${(hP.x+gP.x)/2-10},${hP.y} ${(hP.x+gP.x)/2+10},${gP.y} ${gP.x},${gP.y}`;
     const vPth=`M${hP.x},${hP.y} L${vP.x},${vP.y}`;
+    const bChgPth=`M${hP.x},${hP.y} C${(bP.x+hP.x)/2},${hP.y} ${(bP.x+hP.x)/2},${bP.y} ${bP.x},${bP.y}`;
+    const bDisPth=`M${bP.x},${bP.y} C${(bP.x+hP.x)/2},${bP.y} ${(bP.x+hP.x)/2},${hP.y} ${hP.x},${hP.y}`;
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
     const vSolarPct=(vOn&&d.v2cW>0)?Math.round((d.solarFreeW/d.v2cW)*100):0;
     return `
@@ -842,6 +858,7 @@ class SmoothEnergyCard extends HTMLElement {
         <radialGradient id="glow-h" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#60a5fa" stop-opacity="0.18"/><stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/></radialGradient>
         <radialGradient id="glow-g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${d.isExp?'#34d399':'#f87171'}" stop-opacity="0.2"/><stop offset="100%" stop-color="${d.isExp?'#34d399':'#f87171'}" stop-opacity="0"/></radialGradient>
         <radialGradient id="glow-v" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#c084fc" stop-opacity="0.35"/><stop offset="100%" stop-color="#c084fc" stop-opacity="0"/></radialGradient>
+        <radialGradient id="glow-b" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#34d399" stop-opacity="0.3"/><stop offset="100%" stop-color="#34d399" stop-opacity="0"/></radialGradient>
       </defs>
       ${sOn?`<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>`:''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
@@ -871,6 +888,21 @@ class SmoothEnergyCard extends HTMLElement {
         ?`<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${fmtW(d.v2cW)}</text>
           ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="fill:#fbbf24;font-size:7px">☀️${vSolarPct}% free</text>`:''}`
         :`<text x="${vP.x}" y="${vP.y+14}" class="n-name" style="fill:#2a2050;font-size:8px">V2C</text>`}
+      ${d.hasBattery ? `
+        ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
+        ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
+        ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
+        <circle class="n-ring" style="stroke:#34d399" cx="${bP.x}" cy="${bP.y}" r="${Rb}"/>
+        <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
+        ${d.battSoc != null
+          ? `<text x="${bP.x}" y="${bP.y+9}" class="n-power" style="fill:#34d399;font-size:11px">${Math.round(d.battSoc)}%</text>`
+          : `<text x="${bP.x}" y="${bP.y+9}" class="n-name" style="fill:#1a3a28">BATT</text>`}
+        ${d.battCharging
+          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#34d399;font-size:7.5px">+${fmtW(d.battW)}</text>`
+          : d.battDischarging
+          ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#34d399;font-size:7.5px">${fmtW(Math.abs(d.battW))}</text>`
+          : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="fill:#1a3a28;font-size:7.5px">IDLE</text>`}
+      ` : ''}
     </svg>`;
   }
 
@@ -1017,10 +1049,12 @@ class SmoothEnergyCard extends HTMLElement {
 
   _startParticles(shadow, d) {
     [
-      { id:'pSolar', col:'#fbbf24', w:d.solarW,    active:d.solarW>20 },
-      { id:'pImp',   col:'#f87171', w:d.gridImpW,  active:d.gridImpW>20 },
-      { id:'pExp',   col:'#34d399', w:d.gridExpW,  active:d.gridExpW>20 },
-      { id:'pV2c',   col:'#c084fc', w:d.v2cW,      active:d.v2cW>10 },
+      { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
+      { id:'pImp',    col:'#f87171', w:d.gridImpW,          active:d.gridImpW>20 },
+      { id:'pExp',    col:'#34d399', w:d.gridExpW,          active:d.gridExpW>20 },
+      { id:'pV2c',    col:'#c084fc', w:d.v2cW,              active:d.v2cW>10 },
+      { id:'pBatChg', col:'#34d399', w:d.battW,             active:d.battCharging },
+      { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
     ].filter(f => f.active).forEach(flow => {
       const ms = Math.max(300, Math.round(1200 / clamp(flow.w/1000, 0.2, 4)));
       this._particleTimers.push(setInterval(() => {
@@ -1459,6 +1493,24 @@ class SmoothEnergyCardEditor extends HTMLElement {
                   <option value="dark"${(c.theme||'dark')==='dark'?' selected':''}>🌙 Dark</option>
                   <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
                 </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HOME BATTERY -->
+        <div class="section">
+          <div class="section-head"><h3>🔋 Home Battery / ESS</h3></div>
+          <div class="section-body">
+            <div class="row cols-2">
+              <div class="field">
+                <label>Battery Power (W or kW)</label>
+                <ha-entity-picker data-key="battery_power" allow-custom-entity></ha-entity-picker>
+                <span class="hint">Positive = charging, negative = discharging</span>
+              </div>
+              <div class="field">
+                <label>Battery SoC (%)</label>
+                <ha-entity-picker data-key="battery_soc" allow-custom-entity></ha-entity-picker>
               </div>
             </div>
           </div>

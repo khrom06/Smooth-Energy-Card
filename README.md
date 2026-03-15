@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -23,6 +23,7 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Light theme** — Clean light mode via `theme: light` config option
 - **Sparkline charts** — Mini 6-hour history charts in Solar Today and Grid stat tiles
 - **Tap to more-info** — Tap any EV card, charger, or device tile to open the HA entity popup
+- **Home battery node** — Battery/ESS shown in energy flow with charge/discharge direction and SoC%
 
 ## Screenshots
 
@@ -86,6 +87,10 @@ feed_in_rate: 0.1              # export revenue = export_kwh × price × 0.1
 
 # ─── Theme ───────────────────────────────────────────────────
 theme: dark                    # "dark" (default) or "light"
+
+# ─── Home Battery / ESS (optional) ───────────────────────────
+battery_power: sensor.battery_power   # W or kW — positive = charging, negative = discharging
+battery_soc: sensor.battery_soc       # % — battery state of charge (optional)
 
 # ─── Electric vehicles (unlimited) ───────────────────────────
 evs:
@@ -156,6 +161,8 @@ devices:
 | `price_alert_high` | number | Price pill blinks red when price ≥ this value (€/kWh, optional) |
 | `price_alert_low` | number | Price pill turns green when price ≤ this value (€/kWh, optional) |
 | `theme` | string | `dark` (default) or `light` |
+| `battery_power` | entity | Battery/ESS power sensor (W or kW) — **positive = charging, negative = discharging** |
+| `battery_soc` | entity | Battery state of charge sensor (%) — optional |
 | `evs` | list | List of electric vehicles (see below) |
 | `devices` | list | List of device monitors (see below) |
 
@@ -198,6 +205,12 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.4.0 (2026-03-15)
+- Home battery / ESS node in the SVG energy flow diagram (bottom-left position)
+- Shows battery SoC%, charge direction (+W charging / W discharging) and animated particles
+- New config keys: `battery_power` (positive = charging, negative = discharging) and `battery_soc`
+- Editor section: 🔋 Home Battery / ESS
 
 ### v1.3.0 (2026-03-15)
 - EDF Tempo banner: color-coded daily tariff indicator (BLEU / BLANC / ROUGE) with pulsing red animation
