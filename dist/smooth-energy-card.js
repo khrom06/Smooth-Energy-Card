@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.5.1
+ * Smooth Energy Card v1.5.2
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.5.1
+ * @version 1.5.2
  */
 
-const VERSION = '1.5.1';
+const VERSION = '1.5.2';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -73,6 +73,62 @@ function calcEta(hass, batterySoc, chargingPowerEntity, chargingRateEntity, targ
     const powerKw = toWatts(hass, chargingPowerEntity) / 1000;
     if (powerKw > 0.1) return fmtEta(remaining / ((powerKw / capacityKwh) * 100));
   }
+  return null;
+}
+
+function getChargingReco(d, c) {
+  if (!c.evs || c.evs.length === 0) return null;
+
+  const normalize = s => {
+    const l = (s||'').toLowerCase();
+    if (l.includes('rouge')||l.includes('red')) return 'red';
+    if (l.includes('blanc')||l.includes('white')) return 'white';
+    if (l.includes('bleu')||l.includes('blue')) return 'blue';
+    return null;
+  };
+  const todayColor    = normalize(d.tempoToday);
+  const tomorrowColor = normalize(d.tempoTomorrow);
+
+  // Already charging free from solar
+  if (d.chargerActive && d.solarFreeW > 0 && d.gridChargeW < 50) {
+    return { icon:'☀️', text:`FREE solar charging — ${fmtW(d.solarFreeW)} from sun`, cls:'reco-free' };
+  }
+
+  // Solar surplus available now, not charging
+  const surplusW = Math.max(0, d.solarW - d.houseW - (d.battCharging ? d.battW : 0));
+  if (!d.chargerActive && surplusW > 800) {
+    return { icon:'💡', text:`${fmtW(surplusW)} solar surplus — start charging for free`, cls:'reco-good' };
+  }
+
+  // ROUGE day — avoid
+  if (todayColor === 'red') {
+    const priceStr = d.price != null ? ` (${d.price.toFixed(3)} €/kWh)` : '';
+    return { icon:'⚠️', text:`ROUGE day${priceStr} — avoid heavy consumption today`, cls:'reco-warn' };
+  }
+
+  // Tomorrow is ROUGE — charge today!
+  if (tomorrowColor === 'red' && todayColor !== 'red') {
+    return { icon:'⏰', text:`Tomorrow is ROUGE — charge today while tariff is low`, cls:'reco-info' };
+  }
+
+  // BLEU day and not charging — good opportunity
+  if (todayColor === 'blue' && !d.chargerActive) {
+    const priceStr = d.price != null ? ` at ${d.price.toFixed(3)} €/kWh` : '';
+    return { icon:'💙', text:`BLEU tariff day${priceStr} — good time to charge`, cls:'reco-good' };
+  }
+
+  // Price alert — very cheap
+  const priceAlertLow = parseFloat(c.price_alert_low);
+  if (!isNaN(priceAlertLow) && d.price != null && d.price <= priceAlertLow) {
+    return { icon:'💚', text:`Low tariff now (${d.price.toFixed(3)} €/kWh) — good time to charge`, cls:'reco-good' };
+  }
+
+  // Price alert — very expensive
+  const priceAlertHigh = parseFloat(c.price_alert_high);
+  if (!isNaN(priceAlertHigh) && d.price != null && d.price >= priceAlertHigh) {
+    return { icon:'🔴', text:`High tariff now (${d.price.toFixed(3)} €/kWh) — wait for off-peak`, cls:'reco-warn' };
+  }
+
   return null;
 }
 
@@ -320,6 +376,15 @@ const CSS = `
   .price-pill.alert-low { border-color:rgba(52,211,153,0.4); }
   .price-pill.alert-low .val { color:#34d399; }
   @keyframes price-blink { from{opacity:1} to{opacity:0.45} }
+
+  /* ── CHARGING RECOMMENDATION ── */
+  .charging-reco { display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; margin-bottom:12px; font-size:0.78em; border:1px solid; }
+  .reco-free  { background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.3); color:#34d399; }
+  .reco-good  { background:rgba(96,165,250,0.08); border-color:rgba(96,165,250,0.25); color:#60a5fa; }
+  .reco-info  { background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.25); color:#fbbf24; }
+  .reco-warn  { background:rgba(248,113,113,0.08); border-color:rgba(248,113,113,0.3); color:#f87171; animation:tempo-red-pulse 2.5s ease-in-out infinite; }
+  .reco-icon  { font-size:1.2em; flex-shrink:0; }
+  .reco-text  { flex:1; }
 
   /* ── SELF-SUFFICIENCY GAUGE ── */
   .suff-wrap { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:8px 16px 8px 8px; margin-bottom:14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); cursor:pointer; }
@@ -627,6 +692,10 @@ class SmoothEnergyCard extends HTMLElement {
       else if (!isNaN(lo) && d.price <= lo) pricePill.classList.add('alert-low');
     }
 
+    // Charging recommendation
+    const recoEl = card.querySelector('[data-uid="charging-reco"]');
+    if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+
     // EV section — update in-place to preserve running CSS animations
     this._patchEvGrid(card, d);
 
@@ -852,6 +921,12 @@ class SmoothEnergyCard extends HTMLElement {
     return out;
   }
 
+  _buildChargingReco(d) {
+    const reco = getChargingReco(d, this._config);
+    if (!reco) return '';
+    return `<div class="charging-reco ${reco.cls}"><span class="reco-icon">${reco.icon}</span><span class="reco-text">${reco.text}</span></div>`;
+  }
+
   _buildSufficiencyGauge(d) {
     if (d.solarW <= 0 && d.daySuffPct == null) return '';
 
@@ -923,6 +998,7 @@ class SmoothEnergyCard extends HTMLElement {
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
+      <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
       <div class="ev-section">
         <div class="section-title">Electric Vehicles &amp; Charger</div>
         <div class="ev-grid" data-uid="ev-grid">
