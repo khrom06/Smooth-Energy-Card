@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -17,6 +17,12 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Electricity cost** — Live cost estimate per hour using your current tariff sensor
 - **Solar surplus** — Highlights available surplus power
 - **Solar forecast** — Shows predicted production for today & tomorrow
+- **EDF Tempo banner** — Color-coded daily tariff indicator (BLEU/BLANC/ROUGE)
+- **Daily cost/savings summary** — Today's grid cost, solar savings, and export revenue
+- **Price alerts** — Price pill blinks red above a high threshold, turns green below a low threshold
+- **Light theme** — Clean light mode via `theme: light` config option
+- **Sparkline charts** — Mini 6-hour history charts in Solar Today and Grid stat tiles
+- **Tap to more-info** — Tap any EV card, charger, or device tile to open the HA entity popup
 
 ## Screenshots
 
@@ -63,20 +69,43 @@ solar_today: sensor.hoymiles_gateway_solarh_6402640_today_eq  # kWh produced tod
 solar_forecast_today: sensor.energy_production_today          # kWh forecast today
 solar_forecast_tomorrow: sensor.energy_production_tomorrow    # kWh forecast tomorrow
 
-# ─── Electric Vehicle 1 (Cupra Tavascan) ────────────────────
-ev1_name: Cupra Tavascan
-ev1_battery: sensor.cupra_tavascan_battery_level
-ev1_range: sensor.cupra_tavascan_electric_range
-ev1_image: /local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png
-
-# ─── Electric Vehicle 2 (Fiat 500e) ─────────────────────────
-ev2_name: Fiat 500e
-ev2_battery: sensor.fiat_500e_berline_my24_hvbattery_charge
-ev2_range: sensor.fiat_500e_berline_my24_driving_range
-ev2_image: /local/images/Home/fiat500.jpg
-
-# ─── V2C charger image ───────────────────────────────────────
+# ─── V2C charger ─────────────────────────────────────────────
 v2c_image: /local/images/v2ctrydan-1.png
+v2c_session_energy: sensor.energie_v2c_session     # kWh charged this session
+
+# ─── EDF Tempo / tariff alerts (optional) ────────────────────
+tempo_color_today: sensor.rte_tempo_couleur_du_jour        # state: "BLEU", "BLANC", "ROUGE"
+tempo_color_tomorrow: sensor.rte_tempo_couleur_du_lendemain
+price_alert_high: 0.20         # price pill blinks red above this €/kWh
+price_alert_low: 0.05          # price pill turns green below this €/kWh
+
+# ─── Daily cost summary (optional) ───────────────────────────
+grid_energy_import: sensor.shelly_channel_1_energy          # kWh imported today
+grid_energy_export: sensor.shelly_channel_1_energy_returned # kWh exported today
+feed_in_rate: 0.1              # export revenue = export_kwh × price × 0.1
+
+# ─── Theme ───────────────────────────────────────────────────
+theme: dark                    # "dark" (default) or "light"
+
+# ─── Electric vehicles (unlimited) ───────────────────────────
+evs:
+  - name: Cupra Tavascan
+    battery: sensor.cupra_tavascan_battery_level
+    range: sensor.cupra_tavascan_electric_range
+    image: /local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png
+    charging: binary_sensor.cupra_tavascan_charging_state   # optional
+    charging_power: sensor.cupra_tavascan_charging_power    # kW — for ETA calc
+    target_soc: sensor.cupra_tavascan_target_state_of_charge  # % — optional
+    battery_capacity: 77                                    # kWh — for ETA calc
+
+  - name: Fiat 500e
+    battery: sensor.fiat_500e_berline_my24_hvbattery_charge
+    range: sensor.fiat_500e_berline_my24_driving_range
+    image: /local/images/Home/fiat500.jpg
+    charging: ''                                            # optional
+    charging_rate: sensor.fiat_500e_berline_my24_charging_rate  # %/h — alternative to charging_power
+    target_soc: ''                                          # optional
+    battery_capacity: 37.3                                  # kWh
 
 # ─── Individual device monitoring ────────────────────────────
 devices:
@@ -100,7 +129,11 @@ devices:
     icon: server
 ```
 
+> **Note:** The old flat `ev1_*` / `ev2_*` keys are still accepted and auto-migrated to the `evs[]` format on load.
+
 ## Configuration options
+
+### Top-level keys
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -113,16 +146,32 @@ devices:
 | `solar_today` | entity | Energy produced today (kWh) |
 | `solar_forecast_today` | entity | Predicted production today (kWh) |
 | `solar_forecast_tomorrow` | entity | Predicted production tomorrow (kWh) |
-| `ev1_name` | string | Name of first EV |
-| `ev1_battery` | entity | Battery % of first EV |
-| `ev1_range` | entity | Estimated range of first EV (km) |
-| `ev1_image` | string | Image URL for first EV (optional) |
-| `ev2_name` | string | Name of second EV |
-| `ev2_battery` | entity | Battery % of second EV |
-| `ev2_range` | entity | Estimated range of second EV (km) |
-| `ev2_image` | string | Image URL for second EV (optional) |
 | `v2c_image` | string | Image URL for EV charger (optional) |
+| `v2c_session_energy` | entity | Energy charged this session (kWh, optional) |
+| `tempo_color_today` | entity | EDF Tempo color today — state: `BLUE`/`WHITE`/`RED` or French equivalents (optional) |
+| `tempo_color_tomorrow` | entity | EDF Tempo color tomorrow (optional) |
+| `grid_energy_import` | entity | Grid energy imported today (kWh) — for daily cost summary |
+| `grid_energy_export` | entity | Grid energy exported today (kWh) — for daily summary |
+| `feed_in_rate` | number | Feed-in rate as fraction of import price (e.g. `0.1` = 10%). Set `0` to hide revenue tile. |
+| `price_alert_high` | number | Price pill blinks red when price ≥ this value (€/kWh, optional) |
+| `price_alert_low` | number | Price pill turns green when price ≤ this value (€/kWh, optional) |
+| `theme` | string | `dark` (default) or `light` |
+| `evs` | list | List of electric vehicles (see below) |
 | `devices` | list | List of device monitors (see below) |
+
+### EV entry (`evs[]`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name |
+| `battery` | entity | Battery level (%) |
+| `range` | entity | Estimated range (km) |
+| `image` | string | Image URL (optional) |
+| `charging` | entity | Charging state sensor — `binary_sensor.*` (optional) |
+| `charging_power` | entity | Charging power sensor (kW) — used for ETA calculation |
+| `charging_rate` | entity | Charging rate sensor (%/h) — alternative to `charging_power` |
+| `target_soc` | entity | Target state of charge sensor (%) — shows arc on gauge (optional) |
+| `battery_capacity` | number | Battery capacity in kWh — required for ETA when using `charging_power` |
 
 ### Device configuration
 
@@ -149,6 +198,15 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.3.0 (2026-03-15)
+- EDF Tempo banner: color-coded daily tariff indicator (BLEU / BLANC / ROUGE) with pulsing red animation
+- Daily cost/savings summary: 3-tile grid showing today's grid cost, solar savings, and export revenue
+- Price alert thresholds: price pill blinks red above `price_alert_high`, turns green below `price_alert_low`
+- Light theme: full light mode palette via `theme: light` config key
+- Sparkline mini charts: 6-hour history area+line charts in Solar Today and Grid stat tiles
+- Tap-to-more-info: clicking EV cards, charger, or device tiles opens the HA entity detail popup
+- New config editor sections for EDF Tempo, daily summary, alerts, and theme
 
 ### v1.2.1 (2026-03-15)
 - Animated bezier charging cable between V2C charger and charging EV
