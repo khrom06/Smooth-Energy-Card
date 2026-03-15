@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.5.2
+ * Smooth Energy Card v1.5.3
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.5.2
+ * @version 1.5.3
  */
 
-const VERSION = '1.5.2';
+const VERSION = '1.5.3';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -130,6 +130,20 @@ function getChargingReco(d, c) {
   }
 
   return null;
+}
+
+function getSunArc() {
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
+  const rise = 6.0, set = 21.0;
+  if (h < rise || h > set) return null;
+  const t = (h - rise) / (set - rise);
+  const p0 = {x:20,y:100}, p1 = {x:180,y:15}, p2 = {x:340,y:100};
+  const mt = 1 - t;
+  const sx = mt*mt*p0.x + 2*mt*t*p1.x + t*t*p2.x;
+  const sy = mt*mt*p0.y + 2*mt*t*p1.y + t*t*p2.y;
+  const noon = 1 - Math.abs(t - 0.5) * 2;
+  return { t, x: sx, y: sy, noon };
 }
 
 // ─── Config migration: flat ev1/ev2 → evs array ───────────────────────────────
@@ -1026,6 +1040,7 @@ class SmoothEnergyCard extends HTMLElement {
     const bDisPth=`M${bP.x},${bP.y} C${(bP.x+hP.x)/2},${bP.y} ${(bP.x+hP.x)/2},${hP.y} ${hP.x},${hP.y}`;
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
     const vSolarPct=(vOn&&d.v2cW>0)?Math.round((d.solarFreeW/d.v2cW)*100):0;
+    const sun = getSunArc();
     return `
     <svg class="flow-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -1076,7 +1091,20 @@ class SmoothEnergyCard extends HTMLElement {
           <stop offset="0%" stop-color="#0a1a12" stop-opacity="0.8"/>
           <stop offset="100%" stop-color="#0c1020"/>
         </radialGradient>
+        <linearGradient id="sun-arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.6"/>
+          <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#f97316" stop-opacity="0.6"/>
+        </linearGradient>
       </defs>
+      ${sun ? `
+        <path d="M 20,100 Q 180,15 340,100" fill="none"
+          stroke="url(#sun-arc-grad)" stroke-width="1" opacity="0.25" stroke-dasharray="3 5"/>
+        <circle cx="${sun.x.toFixed(1)}" cy="${sun.y.toFixed(1)}" r="5"
+          fill="${sun.noon > 0.7 ? '#fef08a' : '#fed7aa'}"
+          filter="drop-shadow(0 0 ${(4 + sun.noon*4).toFixed(0)}px ${sun.noon > 0.7 ? '#fbbf24' : '#fb923c'})"
+          opacity="${(0.5 + sun.noon * 0.5).toFixed(2)}"/>
+      ` : ''}
       ${sOn?`<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>`:''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R+14}" fill="url(#glow-g)"/>
