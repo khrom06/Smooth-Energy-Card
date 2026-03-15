@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.5.0
+ * Smooth Energy Card v1.5.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.5.0
+ * @version 1.5.1
  */
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -321,6 +321,11 @@ const CSS = `
   .price-pill.alert-low .val { color:#34d399; }
   @keyframes price-blink { from{opacity:1} to{opacity:0.45} }
 
+  /* ── SELF-SUFFICIENCY GAUGE ── */
+  .suff-wrap { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:8px 16px 8px 8px; margin-bottom:14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); cursor:pointer; }
+  .suff-label .suff-main { font-size:1.1em; font-weight:800; line-height:1; }
+  .suff-label .suff-sub { font-size:0.65em; color:#3d5280; margin-top:3px; }
+
   /* ── TAP CURSOR ── */
   .ev-card, .device { cursor:pointer; }
 
@@ -538,6 +543,14 @@ class SmoothEnergyCard extends HTMLElement {
     }));
     if (c.devices_sort) devices = [...devices].sort((a, b) => b.w - a.w);
 
+    // Self-sufficiency
+    const liveSelfW    = Math.min(solarW, houseW + v2cW + Math.max(0, battW||0));
+    const liveTotalW   = houseW + v2cW + Math.max(0, battW||0);
+    const liveSuffPct  = liveTotalW > 0 ? clamp((liveSelfW / liveTotalW) * 100, 0, 100) : 0;
+    const daySelfKwh   = (solarToday != null && exportKwhDay != null) ? Math.max(0, solarToday - exportKwhDay) : null;
+    const dayTotalKwh  = (daySelfKwh != null && importKwhDay != null) ? daySelfKwh + importKwhDay : null;
+    const daySuffPct   = (dayTotalKwh != null && dayTotalKwh > 0) ? clamp((daySelfKwh / dayTotalKwh) * 100, 0, 100) : null;
+
     return {
       solarW, gridW, gridImpW, gridExpW, houseW, v2cW, isExp, price, costH,
       solarToday, fcToday, fcTomorrow, chargerActive,
@@ -547,6 +560,7 @@ class SmoothEnergyCard extends HTMLElement {
       tempoToday, tempoTomorrow,
       importKwhDay, exportKwhDay, selfConsumedKwh, costToday, savingsToday, revenueToday,
       battW, battSoc, battCharging, battDischarging, hasBattery,
+      liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
     };
   }
 
@@ -590,6 +604,10 @@ class SmoothEnergyCard extends HTMLElement {
     const surplusWrap = card.querySelector('[data-uid="surplus-wrap"]');
     if (surplusWrap) surplusWrap.innerHTML = d.surplusW > 50
       ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : '';
+
+    // Self-sufficiency gauge
+    const suffWrap = card.querySelector('[data-uid="suff-wrap"]');
+    if (suffWrap) suffWrap.innerHTML = this._buildSufficiencyGauge(d);
 
     // Stats
     const statsEl = card.querySelector('[data-uid="stats"]');
@@ -834,6 +852,54 @@ class SmoothEnergyCard extends HTMLElement {
     return out;
   }
 
+  _buildSufficiencyGauge(d) {
+    if (d.solarW <= 0 && d.daySuffPct == null) return '';
+
+    const pct = d.daySuffPct != null ? d.daySuffPct : d.liveSuffPct;
+    const label = d.daySuffPct != null ? 'Solar powered today' : 'Live self-sufficiency';
+    const col = pct >= 70 ? '#34d399' : pct >= 30 ? '#fbbf24' : '#f87171';
+
+    const R = 36, cx = 48, cy = 48, sw = 8;
+    const circ = 2 * Math.PI * R;
+    const arcLen = circ * 0.75;
+    const filled = arcLen * (pct / 100);
+    const gap = circ - arcLen;
+    const rotation = 135;
+
+    const tip = [
+      `Self-sufficiency: ${pct.toFixed(1)}%`,
+      d.daySelfKwh != null ? `Solar self-consumed: ${round1(d.daySelfKwh)} kWh` : '',
+      d.dayTotalKwh != null ? `Total consumption: ${round1(d.dayTotalKwh)} kWh` : '',
+      `Live: ${d.liveSuffPct.toFixed(0)}%`,
+    ].filter(Boolean).join('\n');
+
+    return `
+    <div class="suff-wrap" data-uid="suff-gauge" data-tip="${tip}">
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${sw}"
+          stroke-dasharray="${arcLen.toFixed(2)} ${gap.toFixed(2)}"
+          stroke-dashoffset="${(-gap/2).toFixed(2)}"
+          stroke-linecap="round"
+          transform="rotate(${rotation} ${cx} ${cy})"/>
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw}"
+          stroke-dasharray="${filled.toFixed(2)} ${(circ-filled).toFixed(2)}"
+          stroke-dashoffset="${(-gap/2).toFixed(2)}"
+          stroke-linecap="round"
+          transform="rotate(${rotation} ${cx} ${cy})"
+          style="transition:stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1),stroke 0.6s"
+          filter="drop-shadow(0 0 4px ${col})"/>
+        <text x="${cx}" y="${cy-4}" text-anchor="middle" dominant-baseline="middle"
+          font-size="18" font-weight="800" fill="${col}">${pct.toFixed(0)}</text>
+        <text x="${cx}" y="${cy+13}" text-anchor="middle" dominant-baseline="middle"
+          font-size="9" font-weight="600" fill="rgba(255,255,255,0.4)">%</text>
+      </svg>
+      <div class="suff-label">
+        <div class="suff-main" style="color:${col}">${pct.toFixed(1)}% solar</div>
+        <div class="suff-sub">${label}</div>
+      </div>
+    </div>`;
+  }
+
   _buildCard(d) {
     const c = this._config;
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
@@ -854,6 +920,7 @@ class SmoothEnergyCard extends HTMLElement {
       ${this._buildTempoBanner(d)}
       <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
       <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">☀️ Solar surplus available</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
+      <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
       <div class="ev-section">
