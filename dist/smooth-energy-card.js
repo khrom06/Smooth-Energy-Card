@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.4.2
+ * Smooth Energy Card v1.5.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.4.2
+ * @version 1.5.0
  */
 
-const VERSION = '1.4.2';
+const VERSION = '1.5.0';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -159,6 +159,16 @@ const CSS = `
     border: 1px solid rgba(96,165,250,0.12);
     box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(255,255,255,0.02);
   }
+  .card-hud { position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; border-radius:20px; }
+  .card-hud::before { content:''; position:absolute; inset:0;
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(96,165,250,0.025) 39px, rgba(96,165,250,0.025) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(96,165,250,0.025) 39px, rgba(96,165,250,0.025) 40px);
+    animation: hud-drift 30s linear infinite; }
+  @keyframes hud-drift { from{background-position:0 0,0 0} to{background-position:40px 40px,40px 40px} }
+  .card-hud::after { content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse 70% 50% at 20% 20%, rgba(96,165,250,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 60% at 80% 80%, rgba(192,132,252,0.05) 0%, transparent 70%); }
+  .card > * { position:relative; z-index:1; }
   .header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; }
   .title-block .title { font-size:1.25em; font-weight:800; background:linear-gradient(120deg,#7dd3fc,#818cf8,#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:0.5px; }
   .title-block .subtitle { font-size:0.68em; color:#3d5280; margin-top:1px; letter-spacing:0.3px; }
@@ -184,14 +194,14 @@ const CSS = `
   .surplus .s-lbl{color:#34d399;font-weight:600;} .surplus .s-val{color:#34d399;font-weight:700;font-size:1.05em;}
 
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:14px; }
-  .stat { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:9px 5px; text-align:center; }
+  .stat { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:9px 5px; text-align:center; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; }
   .stat .sv{font-size:0.9em;font-weight:700;line-height:1;margin-bottom:3px;} .stat .sl{font-size:0.58em;font-weight:600;color:#3d5280;text-transform:uppercase;letter-spacing:0.5px;}
   .st-sol .sv{color:#fbbf24;} .st-exp .sv{color:#34d399;} .st-imp .sv{color:#f87171;} .st-earn .sv{color:#34d399;} .st-cost .sv{color:#f87171;}
 
   .ev-section{margin-bottom:14px;}
   .section-title { font-size:0.62em; font-weight:700; letter-spacing:1.8px; color:#2a3558; text-transform:uppercase; margin-bottom:8px; }
   .ev-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; }
-  .ev-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; }
+  .ev-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
   .ev-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; border-radius:14px 14px 0 0; transition:opacity 0.4s; }
   .ev-t0::before{background:linear-gradient(90deg,#f59e0b,#ef4444);}
   .ev-t1::before{background:linear-gradient(90deg,#3b82f6,#10b981);}
@@ -234,7 +244,7 @@ const CSS = `
   .v2c-img.plugged{opacity:1;filter:drop-shadow(0 0 8px rgba(192,132,252,0.6));}
 
   .devices-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:7px;margin-bottom:12px;}
-  .device{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;}
+  .device{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   .device.on{border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.04);}
   .device.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:1.5px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent);}
   .dev-icon{width:20px;height:20px;flex-shrink:0;transition:color 0.3s;}
@@ -297,7 +307,7 @@ const CSS = `
 
   /* ── DAILY SUMMARY ── */
   .daily-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-bottom:14px; }
-  .ds-tile { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.05); border-radius:11px; padding:9px 6px; text-align:center; }
+  .ds-tile { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.05); border-radius:11px; padding:9px 6px; text-align:center; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
   .ds-tile .dv { font-size:0.9em; font-weight:800; line-height:1; margin-bottom:3px; }
   .ds-tile .dl { font-size:0.58em; font-weight:600; color:#3d5280; text-transform:uppercase; letter-spacing:0.5px; }
   .ds-cost .dv { color:#f87171; }
@@ -829,6 +839,7 @@ class SmoothEnergyCard extends HTMLElement {
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
     const hasSurplus = d.surplusW > 50;
     return `
+      <div class="card-hud"></div>
       <div class="share-toast" data-uid="share-toast"></div>
       <div class="header">
         <div class="title-block">
@@ -880,6 +891,48 @@ class SmoothEnergyCard extends HTMLElement {
         <radialGradient id="glow-g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${d.isExp?'#34d399':'#f87171'}" stop-opacity="0.2"/><stop offset="100%" stop-color="${d.isExp?'#34d399':'#f87171'}" stop-opacity="0"/></radialGradient>
         <radialGradient id="glow-v" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#c084fc" stop-opacity="0.35"/><stop offset="100%" stop-color="#c084fc" stop-opacity="0"/></radialGradient>
         <radialGradient id="glow-b" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#34d399" stop-opacity="0.3"/><stop offset="100%" stop-color="#34d399" stop-opacity="0"/></radialGradient>
+        <radialGradient id="orb-sol" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#fef9c3" stop-opacity="0.95"/>
+          <stop offset="30%" stop-color="#fbbf24"/>
+          <stop offset="100%" stop-color="#78350f" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-sol-off" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#2d2515" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#0c1020"/>
+        </radialGradient>
+        <radialGradient id="orb-house" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#e0f2fe" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#60a5fa"/>
+          <stop offset="100%" stop-color="#1e3a5f" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-grid-imp" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#fee2e2" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#f87171"/>
+          <stop offset="100%" stop-color="#4c1515" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-grid-exp" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#d1fae5" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#34d399"/>
+          <stop offset="100%" stop-color="#064e3b" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-v2c" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#f3e8ff" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#c084fc"/>
+          <stop offset="100%" stop-color="#3b0764" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-v2c-off" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#1a0a2e" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#0c1020"/>
+        </radialGradient>
+        <radialGradient id="orb-bat" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#d1fae5" stop-opacity="0.9"/>
+          <stop offset="30%" stop-color="#34d399"/>
+          <stop offset="100%" stop-color="#064e3b" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="orb-bat-off" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#0a1a12" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#0c1020"/>
+        </radialGradient>
       </defs>
       ${sOn?`<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>`:''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
@@ -890,20 +943,24 @@ class SmoothEnergyCard extends HTMLElement {
       ${eOn?`<path id="pExp" class="track t-exp" d="${ePth}"/>`:''}
       ${vOn?`<path id="pV2c" class="track t-v2c" d="${vPth}"/>`:''}
       <g id="particles"></g>
-      <circle class="n-ring n-solar" cx="${sP.x}" cy="${sP.y}" r="${R}"/>
+      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5"/>
+      <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}">☀️</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power ${sOn?'c-solar':'c-idle'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+22}" class="n-name">SOLAR</text>
-      <circle class="n-ring n-house" cx="${hP.x}" cy="${hP.y}" r="${R}"/>
+      <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
       <text x="${hP.x}" y="${hP.y+7}" class="n-power c-house">${fmtW(d.houseW)}</text>
       <text x="${hP.x}" y="${hP.y+22}" class="n-name">HOUSE</text>
-      <circle class="n-ring n-grid" cx="${gP.x}" cy="${gP.y}" r="${R}"/>
+      <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
+      <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
       <text x="${gP.x}" y="${gP.y+7}" class="n-power ${gClass}">${fmtW(Math.abs(d.gridW))}</text>
       <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?'EXPORT':'IMPORT'}</text>
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
-      <circle class="n-ring n-v2c" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>
+      <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?'orb-v2c':'orb-v2c-off'})" stroke="${vOn?'#c084fc':'#2a1a5a'}" stroke-width="1.5"/>
+      <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
       <text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
       ${vOn
         ?`<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="fill:#a78bfa;font-size:7.5px">${fmtW(d.v2cW)}</text>
@@ -913,7 +970,8 @@ class SmoothEnergyCard extends HTMLElement {
         ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
         ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
-        <circle class="n-ring" style="stroke:#34d399" cx="${bP.x}" cy="${bP.y}" r="${Rb}"/>
+        <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5"/>
+        <circle cx="${bP.x-Rb*0.28}" cy="${bP.y-Rb*0.28}" r="${Rb*0.2}" fill="white" opacity="${(d.battCharging||d.battDischarging)?'0.28':'0.07'}"/>
         <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
         ${d.battSoc != null
           ? `<text x="${bP.x}" y="${bP.y+9}" class="n-power" style="fill:#34d399;font-size:11px">${Math.round(d.battSoc)}%</text>`
