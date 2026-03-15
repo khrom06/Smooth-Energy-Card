@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -25,6 +25,7 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Tap to more-info** — Tap any EV card, charger, or device tile to open the HA entity popup
 - **Home battery node** — Battery/ESS shown in energy flow with charge/discharge direction and SoC%
 - **Device alerts & ranking** — Per-device alert threshold (border pulses red), optional sort by consumption
+- **Copy to clipboard** — One-click copy of current energy state as formatted text (EV status, costs, solar, etc.)
 
 ## Screenshots
 
@@ -208,6 +209,11 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v1.4.2 (2026-03-15)
+- 📋 Share button in card header — copies formatted energy state snapshot to clipboard
+- Snapshot includes: solar, house, grid, battery, V2C, all EV states, costs, solar today, surplus
+- Toast notification confirms copy or warns if clipboard API is unavailable (non-HTTPS)
 
 ### v1.4.1 (2026-03-15)
 - Per-device `alert_above` threshold (W): device tile border pulses red when power exceeds the threshold

@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.4.1
+ * Smooth Energy Card v1.4.2
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.4.1
+ * @version 1.4.2
  */
 
-const VERSION = '1.4.1';
+const VERSION = '1.4.2';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -362,6 +362,12 @@ const CSS = `
   @keyframes dev-alert-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0);border-color:rgba(248,113,113,0.45)} 50%{box-shadow:0 0 12px 3px rgba(248,113,113,0.25);border-color:rgba(248,113,113,0.85)} }
   .device.alert { animation:dev-alert-pulse 1.6s ease-in-out infinite; }
   .dev-rank { position:absolute; top:4px; left:5px; font-size:0.55em; font-weight:800; color:#2a3558; }
+
+  /* ── SHARE BUTTON ── */
+  .share-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:pointer; font-size:0.78em; color:#60a5fa; transition:background 0.2s,border-color 0.2s; flex-shrink:0; }
+  .share-btn:hover { background:rgba(96,165,250,0.16); border-color:rgba(96,165,250,0.4); }
+  .share-toast { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(52,211,153,0.95); color:#052e16; border-radius:8px; padding:6px 16px; font-size:0.78em; font-weight:700; pointer-events:none; opacity:0; transition:opacity 0.3s; z-index:20; white-space:nowrap; }
+  .share-toast.show { opacity:1; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -823,12 +829,16 @@ class SmoothEnergyCard extends HTMLElement {
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
     const hasSurplus = d.surplusW > 50;
     return `
+      <div class="share-toast" data-uid="share-toast"></div>
       <div class="header">
         <div class="title-block">
           <div class="title">${c.title || 'Energy'}</div>
           <div class="subtitle">⚡ Live energy monitor · v${VERSION}</div>
         </div>
-        <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
+          <button class="share-btn" data-action="share" title="Copy stats to clipboard">📋</button>
+        </div>
       </div>
       ${this._buildTempoBanner(d)}
       <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
@@ -1106,8 +1116,59 @@ class SmoothEnergyCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
   }
 
+  _copyStats(d) {
+    const c = this._config;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = now.toLocaleDateString('fr-FR');
+    const lines = [
+      `⚡ Smooth Energy — ${dateStr} ${timeStr}`,
+      ``,
+      `☀️  Solar:   ${fmtW(d.solarW)}`,
+      `🏠  House:   ${fmtW(d.houseW)}`,
+      d.isExp
+        ? `🔌  Grid:    ↑ ${fmtW(d.gridExpW)} (exporting)`
+        : `🔌  Grid:    ↓ ${fmtW(d.gridImpW)} (importing)`,
+      d.hasBattery && d.battCharging    ? `🔋  Battery: +${fmtW(d.battW)} (charging)` : '',
+      d.hasBattery && d.battDischarging ? `🔋  Battery: ${fmtW(Math.abs(d.battW))} (discharging)` : '',
+      d.hasBattery && d.battSoc != null ? `    SoC: ${Math.round(d.battSoc)}%` : '',
+      d.v2cW > 10 ? `🚗  V2C:     ${fmtW(d.v2cW)} charging` : '',
+      ``,
+      ...d.evData.map(ev => `🚘  ${ev.name}: ${ev.bat}% · ${ev.rng} km${ev.isCharging ? ' ⚡ charging' : ''}`),
+      ``,
+      d.solarToday != null  ? `📅  Solar today:   ${round1(d.solarToday)} kWh` : '',
+      d.costToday != null   ? `💰  Cost today:    ${d.costToday.toFixed(2)} €` : '',
+      d.savingsToday != null? `🌿  Savings today: ${d.savingsToday.toFixed(2)} €` : '',
+      d.price != null       ? `💶  Price now:     ${d.price.toFixed(3)} €/kWh` : '',
+      d.surplusW > 50       ? `✅  Solar surplus: ${fmtW(d.surplusW)} available` : '',
+    ].filter(s => s !== '').join('\n');
+
+    navigator.clipboard.writeText(lines).then(() => {
+      const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
+      if (toast) {
+        toast.textContent = '✓ Copied to clipboard!';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+    }).catch(() => {
+      const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
+      if (toast) {
+        toast.textContent = '⚠️ Clipboard not available';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+    });
+  }
+
   _setupTapHandlers(shadow) {
     const c = this._config;
+    // Share button
+    const shareBtn = shadow.querySelector('[data-action="share"]');
+    if (shareBtn) shareBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const d = this._data();
+      if (d) this._copyStats(d);
+    });
     // Charger card
     const chargerCard = shadow.querySelector('.ev-charger');
     if (chargerCard && c.v2c_power) chargerCard.addEventListener('click', () => this._moreInfo(c.v2c_power));
