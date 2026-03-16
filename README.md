@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -35,9 +35,13 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **V2G support** — Detects negative charger power and shows reverse energy flow (EV→home)
 - **Multilingual** — Full UI in English, French, Spanish, Chinese (Simplified) and Japanese. Auto-detects HA language, or set manually via `language` config key
 
-## Screenshots
+## Preview
 
-> Coming soon
+<p align="center">
+  <img src="docs/preview.png" alt="Smooth Energy Card live preview" width="375">
+</p>
+
+> Live card — solar production, animated energy flow, EV battery gauges, self-sufficiency arc, daily cost summary and smart charging recommendations.
 
 ## Installation
 
