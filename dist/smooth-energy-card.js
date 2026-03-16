@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.3.1
+ * Smooth Energy Card v2.3.2
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.3.1
+ * @version 2.3.2
  */
 
-const VERSION = '2.3.1';
+const VERSION = '2.3.2';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -627,7 +627,9 @@ const CSS = `
   .ev-range{font-size:0.8em;font-weight:700;color:#8899cc;}
   .ev-range em{font-style:normal;font-size:0.8em;color:#3d5280;}
   .ev-eta{font-size:0.62em;font-weight:700;color:#34d399;text-align:center;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:6px;padding:2px 6px;width:100%;animation:eta-fade 1.2s ease-in-out infinite alternate;}
-  .ev-cost{font-size:0.68em;font-weight:700;color:#fbbf24;text-align:center;margin-top:2px;letter-spacing:0.02em;}
+  .ev-cost{font-size:0.68em;font-weight:700;color:#f87171;text-align:center;margin-top:2px;letter-spacing:0.02em;display:flex;align-items:center;justify-content:center;gap:3px;flex-wrap:wrap;}
+  .ev-cost-free{color:#34d399!important;}
+  .ev-cost-sub{font-weight:400;opacity:0.7;font-size:0.9em;}
   .charging-badge-solo{font-size:0.68em;font-weight:800;color:#052e16;background:rgba(52,211,153,0.9);border-radius:6px;padding:2px 7px;text-align:center;animation:badge-blink 1s ease-in-out infinite alternate;margin-bottom:2px;}
   .ev-warranty { font-size:0.55em; font-weight:700; text-align:center; border-radius:5px; padding:2px 5px; border:1px solid; }
   .ev-warranty.ok  { color:#34d399; background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.2); }
@@ -1182,9 +1184,20 @@ class SmoothEnergyCard extends HTMLElement {
       const targetSoc = ev.target_soc ? numState(h, ev.target_soc, null) : null;
       const isCharging = ev.charging ? strState(h, ev.charging) === 'on' : false;
       const eta  = isCharging ? calcEta(h, bat, ev.charging_power||null, ev.charging_rate||null, ev.target_soc||null, ev.battery_capacity||60) : null;
-      // Live charging power + cost estimate
+      // Live charging power + cost estimate (grid-only: subtract solar contribution)
       const chargingW = ev.charging_power ? toWatts(h, ev.charging_power) : 0;
-      const chargingCostH = (isCharging && chargingW > 10 && price != null) ? (chargingW / 1000) * price : null;
+      // Grid fraction: what share of the charger power comes from the grid (vs solar)
+      // Uses global v2cW + solarW; falls back to 1 (100% grid) if charger power unknown
+      const _gridFrac = (v2cW > 10) ? Math.max(0, Math.min(1, (v2cW - solarW) / v2cW)) : 1;
+      const _gridChargingW = chargingW * _gridFrac;
+      const chargingCostH = (isCharging && chargingW > 10 && price != null) ? (_gridChargingW / 1000) * price : null;
+      // Session total cost: kWh remaining × grid fraction × price
+      const _targetPct = (targetSoc != null && targetSoc > bat) ? targetSoc : 100;
+      const _kWhRemaining = Math.max(0, (_targetPct - bat) / 100) * (parseFloat(ev.battery_capacity) || 60);
+      const sessionGridCostEst = (isCharging && _kWhRemaining > 0.1 && price != null)
+        ? _kWhRemaining * _gridFrac * price : null;
+      // Is the EV charging 100% from solar (free)?
+      const chargingFree = isCharging && chargingW > 10 && _gridFrac < 0.05;
       // #24 Battery health + warranty
       const battHealth = ev.battery_health ? clamp(numState(h, ev.battery_health, null), 0, 100) : null;
       let warrantyMonths = null;
@@ -1226,7 +1239,7 @@ class SmoothEnergyCard extends HTMLElement {
           depStatus = { time: timeStr, ok: etaHours == null || etaHours <= hoursUntilDep };
         }
       }
-      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, battHealth, warrantyMonths, depStatus };
+      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, sessionGridCostEst, chargingFree, battHealth, warrantyMonths, depStatus };
     });
     // Fallback: if charger active and no EV reports charging state, mark first EV
     if (chargerActive && evData.length > 0 && !evData.some(ev => ev.isCharging) && !evData[0].charging) {
@@ -1234,8 +1247,13 @@ class SmoothEnergyCard extends HTMLElement {
         const firstActive = (c.chargers || []).find(ch => ch.power && Math.abs(toWatts(h, ch.power)) > 10);
         return firstActive ? Math.abs(toWatts(h, firstActive.power)) : 0;
       })();
-      const fallbackCostH = (fallbackW > 10 && price != null) ? (fallbackW / 1000) * price : null;
-      evData[0] = { ...evData[0], isCharging: true, chargingCostH: fallbackCostH };
+      const fbGridFrac = (v2cW > 10) ? Math.max(0, Math.min(1, (v2cW - solarW) / v2cW)) : 1;
+      const fallbackCostH = (fallbackW > 10 && price != null) ? (fallbackW * fbGridFrac / 1000) * price : null;
+      const fbBat = evData[0].bat || 0;
+      const fbCap = parseFloat(evData[0].battery_capacity) || 60;
+      const fbKwhRem = Math.max(0, (100 - fbBat) / 100) * fbCap;
+      const fbSessionCost = (fbKwhRem > 0.1 && price != null) ? fbKwhRem * fbGridFrac * price : null;
+      evData[0] = { ...evData[0], isCharging: true, chargingCostH: fallbackCostH, sessionGridCostEst: fbSessionCost, chargingFree: fbGridFrac < 0.05 };
     }
 
     const battW   = c.battery_power ? toWatts(h, c.battery_power) : 0;
@@ -1631,18 +1649,44 @@ class SmoothEnergyCard extends HTMLElement {
         }
       }
 
-      // Charging cost line
+      // Charging cost line — grid-only, session total preferred
       let costEl = evCard.querySelector('.ev-cost');
-      if (ev.isCharging && ev.chargingCostH != null) {
-        const costText = `~${ev.chargingCostH.toFixed(3)} €/h`;
-        if (costEl) costEl.textContent = costText;
-        else {
-          costEl = document.createElement('div');
-          costEl.className = 'ev-cost';
-          costEl.textContent = costText;
-          const etaEl2 = evCard.querySelector('.ev-eta');
-          if (etaEl2) etaEl2.insertAdjacentElement('afterend', costEl);
-          else evCard.appendChild(costEl);
+      if (ev.isCharging) {
+        let costHTML = '';
+        if (ev.chargingFree) {
+          costHTML = '☀️ FREE';
+          if (costEl) { costEl.className = 'ev-cost ev-cost-free'; costEl.innerHTML = costHTML; }
+          else {
+            costEl = document.createElement('div');
+            costEl.className = 'ev-cost ev-cost-free';
+            costEl.innerHTML = costHTML;
+            const etaEl2 = evCard.querySelector('.ev-eta');
+            if (etaEl2) etaEl2.insertAdjacentElement('afterend', costEl);
+            else evCard.appendChild(costEl);
+          }
+        } else if (ev.sessionGridCostEst != null) {
+          const tgt = ev.targetSoc != null ? ` → ${Math.round(ev.targetSoc)}%` : ' → 100%';
+          costHTML = `~€${ev.sessionGridCostEst.toFixed(2)} total⚡<span class="ev-cost-sub">${tgt}</span>`;
+          if (costEl) { costEl.className = 'ev-cost'; costEl.innerHTML = costHTML; }
+          else {
+            costEl = document.createElement('div');
+            costEl.className = 'ev-cost';
+            costEl.innerHTML = costHTML;
+            const etaEl2 = evCard.querySelector('.ev-eta');
+            if (etaEl2) etaEl2.insertAdjacentElement('afterend', costEl);
+            else evCard.appendChild(costEl);
+          }
+        } else if (ev.chargingCostH != null) {
+          costHTML = `⚡ ${ev.chargingCostH.toFixed(3)} €/h`;
+          if (costEl) { costEl.className = 'ev-cost'; costEl.textContent = costHTML; }
+          else {
+            costEl = document.createElement('div');
+            costEl.className = 'ev-cost';
+            costEl.textContent = costHTML;
+            const etaEl2 = evCard.querySelector('.ev-eta');
+            if (etaEl2) etaEl2.insertAdjacentElement('afterend', costEl);
+            else evCard.appendChild(costEl);
+          }
         }
       } else if (costEl) {
         costEl.remove();
@@ -2636,8 +2680,19 @@ class SmoothEnergyCard extends HTMLElement {
       : (ev.isCharging ? `<div class="charging-badge-solo">⚡ Charging</div>` : '');
     const etaLine = (ev.isCharging && ev.eta)
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
-    const costLine = (ev.isCharging && ev.chargingCostH != null)
-      ? `<div class="ev-cost">~${ev.chargingCostH.toFixed(3)} €/h</div>` : '';
+    // Cost display: show session total (grid-only) when possible, else hourly rate
+    let costLine = '';
+    if (ev.isCharging) {
+      if (ev.chargingFree) {
+        costLine = `<div class="ev-cost ev-cost-free">☀️ FREE</div>`;
+      } else if (ev.sessionGridCostEst != null) {
+        const solarPct = Math.round((1 - (ev.chargingCostH && ev.chargingW > 0 ? ev.chargingCostH / (ev.chargingW / 1000 * (/* price approx */ 1)) : 0)) * 100);
+        const tgt = ev.targetSoc != null ? ` → ${Math.round(ev.targetSoc)}%` : ' → 100%';
+        costLine = `<div class="ev-cost" data-tip="Grid-only cost to reach target\n${tgt}\n${ev.chargingCostH!=null?`Rate: ${ev.chargingCostH.toFixed(3)} €/h (grid)`:''}">~€${ev.sessionGridCostEst.toFixed(2)} total⚡<span class="ev-cost-sub">${tgt}</span></div>`;
+      } else if (ev.chargingCostH != null) {
+        costLine = `<div class="ev-cost" data-tip="Grid-only charging rate">⚡ ${ev.chargingCostH.toFixed(3)} €/h</div>`;
+      }
+    }
     const depLine = ev.depStatus
       ? `<div class="ev-dep ${ev.depStatus.ok ? 'dep-ok' : 'dep-warn'}">${ev.depStatus.ok ? '✓' : '⚠️'} ${ev.depStatus.time}</div>` : '';
     const batTip = this._t('tip_bat', ev.name, ev.bat, ev.rng, ev.targetSoc, ev.isCharging && ev.eta ? ev.eta : null)
