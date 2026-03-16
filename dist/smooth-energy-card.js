@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.9
+ * Smooth Energy Card v1.8.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.7.9';
+const VERSION = '1.8.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -766,6 +766,26 @@ const CSS = `
   .device.alert { animation:dev-alert-pulse 1.6s ease-in-out infinite; }
   .dev-rank { position:absolute; top:4px; left:5px; font-size:0.55em; font-weight:800; color:#2a3558; }
 
+  /* ── WOW: ENERGY STREAK BADGE ── */
+  .streak-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:20px; font-size:0.65em; font-weight:800; border:1px solid; flex-shrink:0; }
+  .streak-badge.fire { color:#fb923c; background:rgba(251,146,60,0.1); border-color:rgba(251,146,60,0.3); }
+  .streak-badge.score { color:#34d399; background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.25); }
+  .streak-badge.score-ok { color:#60a5fa; background:rgba(96,165,250,0.08); border-color:rgba(96,165,250,0.2); }
+
+  /* ── WOW: AMBIENT GLOW ── */
+  .card { transition: box-shadow 2s ease; }
+  .card.amb-surplus { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 60px rgba(52,211,153,0.12),inset 0 0 100px rgba(52,211,153,0.025); }
+  .card.amb-import  { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 60px rgba(248,113,113,0.1),inset 0 0 100px rgba(248,113,113,0.03); }
+
+  /* ── WOW: PEAK FLASH & ALARM ── */
+  @keyframes peak-flash { 0%,100%{box-shadow:0 8px 40px rgba(0,0,0,0.5)} 50%{box-shadow:0 8px 40px rgba(0,0,0,0.5),inset 0 0 0 2px rgba(248,113,113,0.9),0 0 60px rgba(248,113,113,0.35)} }
+  .card.peak-flash { animation:peak-flash 0.55s ease-in-out 4; }
+  .card.peak-alarm { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 0 2px rgba(248,113,113,0.45),0 0 50px rgba(248,113,113,0.18)!important; }
+
+  /* ── WOW: ECLIPSE SHADOW (cloud cover) ── */
+  @keyframes cloud-sweep { 0%,100%{opacity:0.05} 50%{opacity:0.45} }
+  .card.weather-cloudy .flow-wrap::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 55% 70% at 16% 30%, rgba(10,12,20,0.55) 0%, transparent 65%); animation:cloud-sweep 14s ease-in-out infinite; pointer-events:none; z-index:2; border-radius:4px; }
+
   /* ── SHARE BUTTON & STATS POPUP ── */
   .share-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:default; font-size:0.78em; color:#60a5fa; transition:background 0.2s,border-color 0.2s; flex-shrink:0; position:relative; }
   .share-btn:hover { background:rgba(96,165,250,0.16); border-color:rgba(96,165,250,0.4); }
@@ -1034,6 +1054,7 @@ class SmoothEnergyCard extends HTMLElement {
     shadow.appendChild(style);
     const card = document.createElement('div');
     card.className = 'card';
+    if (d) { const extra = this._cardClasses(d); if (extra) card.className += ' ' + extra; }
     card.innerHTML = d ? this._buildCard(d) : `<div style="padding:30px;text-align:center;color:#3d5280;font-size:0.85em">Connecting to Home Assistant…</div>`;
     shadow.appendChild(card);
     if (d) {
@@ -1067,6 +1088,25 @@ class SmoothEnergyCard extends HTMLElement {
     const shadow = this.shadowRoot;
     const card = shadow.querySelector('.card');
     if (!card) { this._render(); return; }
+
+    // WOW: ambient glow + peak alarm + eclipse shadow classes
+    const newClasses = this._cardClasses(d);
+    ['amb-surplus','amb-import','peak-alarm','weather-cloudy'].forEach(c => card.classList.remove(c));
+    if (newClasses) newClasses.split(' ').forEach(c => c && card.classList.add(c));
+    // WOW: peak flash (one-shot animation when threshold newly crossed)
+    const threshold = parseFloat(this._config.grid_demand_threshold) || 3000;
+    const isPeak = d.gridImpW > threshold;
+    if (isPeak && !this._wasPeak) {
+      card.classList.remove('peak-flash');
+      void card.offsetWidth; // reflow to restart animation
+      card.classList.add('peak-flash');
+      setTimeout(() => card.classList.remove('peak-flash'), 2500);
+    }
+    this._wasPeak = isPeak;
+
+    // WOW: header score badge
+    const headerScore = card.querySelector('[data-uid="header-score"]');
+    if (headerScore) headerScore.innerHTML = this._buildHeaderScore(d);
 
     // Price pill
     const priceVal = card.querySelector('[data-uid="price-val"]');
@@ -1578,6 +1618,47 @@ class SmoothEnergyCard extends HTMLElement {
     </div>`;
   }
 
+  _getStreak(daySuffPct) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = JSON.parse(localStorage.getItem('sec-scores') || '{}');
+      if (daySuffPct != null) raw[today] = Math.max(raw[today] || 0, Math.round(daySuffPct));
+      // Trim to last 60 days and save
+      const sorted = Object.keys(raw).sort().slice(-60);
+      const scores = {};
+      sorted.forEach(k => { scores[k] = raw[k]; });
+      try { localStorage.setItem('sec-scores', JSON.stringify(scores)); } catch(e) {}
+      // Count streak of consecutive days >= 30% (not counting today)
+      let streak = 0;
+      const d = new Date(); d.setDate(d.getDate() - 1);
+      for (let i = 0; i < 60; i++) {
+        const key = d.toISOString().slice(0, 10);
+        if ((scores[key] || 0) >= 30) { streak++; d.setDate(d.getDate() - 1); } else break;
+      }
+      return { today: daySuffPct != null ? Math.round(daySuffPct) : null, streak };
+    } catch(e) { return { today: null, streak: 0 }; }
+  }
+
+  _buildHeaderScore(d) {
+    const sk = this._getStreak(d.daySuffPct);
+    const parts = [];
+    if (sk.streak > 0) parts.push(`<span class="streak-badge fire">🔥 ${sk.streak}d</span>`);
+    if (sk.today != null) {
+      const cls = sk.today >= 70 ? 'score' : 'score-ok';
+      parts.push(`<span class="streak-badge ${cls}">⭐ ${sk.today}%</span>`);
+    }
+    return parts.join('');
+  }
+
+  _cardClasses(d) {
+    const c = this._config;
+    const threshold = parseFloat(c.grid_demand_threshold) || 3000;
+    const amb = d.surplusW > 200 ? 'amb-surplus' : d.gridImpW > 500 ? 'amb-import' : '';
+    const peak = d.gridImpW > threshold ? 'peak-alarm' : '';
+    const cloud = ['cloudy','overcast','fog','rainy','pouring','snowy'].some(w => (d.weatherCondition||'').toLowerCase().includes(w)) ? 'weather-cloudy' : '';
+    return [amb, peak, cloud].filter(Boolean).join(' ');
+  }
+
   _buildCard(d) {
     const c = this._config;
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
@@ -1590,6 +1671,7 @@ class SmoothEnergyCard extends HTMLElement {
           <div class="subtitle">⚡ ${this._t('subtitle')} · v${VERSION}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
+          <span data-uid="header-score">${this._buildHeaderScore(d)}</span>
           <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
           <div class="share-btn" data-action="share" title="Energy stats">📋
             <div class="stats-popup" data-uid="stats-popup">
@@ -1654,6 +1736,9 @@ class SmoothEnergyCard extends HTMLElement {
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
     const vSolarPct=(vOn&&d.v2cW>0)?Math.round((d.solarFreeW/d.v2cW)*100):0;
     const sun = getSunArc();
+    // Device laser color: blend solar-yellow ↔ grid-red by solar share
+    const solarShareSvg = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
+    const devCol = `rgb(${Math.round(251*solarShareSvg+248*(1-solarShareSvg))},${Math.round(191*solarShareSvg+113*(1-solarShareSvg))},${Math.round(36*solarShareSvg+113*(1-solarShareSvg))})`;
     // Device node positions: evenly spread across x=[32,328] at y=Drow
     const devPositions = activeDevNodes.map((dev, i) => {
       const n = activeDevNodes.length;
@@ -1783,10 +1868,10 @@ class SmoothEnergyCard extends HTMLElement {
           : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" opacity="0.35" style="font-size:7.5px">${this._t('idle')}</text>`}
       ` : ''}
       ${devPositions.map(({x, y, dev, pth, id}) => `
-        <radialGradient id="glow-dev-${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f97316" stop-opacity="0.28"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></radialGradient>
-        <path id="${id}" class="track" style="stroke:#fb923c;opacity:0.3" d="${pth}"/>
+        <radialGradient id="glow-dev-${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${devCol}" stop-opacity="0.28"/><stop offset="100%" stop-color="${devCol}" stop-opacity="0"/></radialGradient>
+        <path id="${id}" class="track" style="stroke:${devCol};opacity:0.3" d="${pth}"/>
         <circle cx="${x}" cy="${y}" r="${Rd+12}" fill="url(#glow-dev-${id})"/>
-        <circle cx="${x}" cy="${y}" r="${Rd}" fill="rgba(30,15,5,0.85)" stroke="#f97316" stroke-width="1.2"/>
+        <circle cx="${x}" cy="${y}" r="${Rd}" fill="rgba(30,15,5,0.85)" stroke="${devCol}" stroke-width="1.2"/>
         <text x="${x}" y="${y-4}" font-size="13" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${devEmoji[dev.icon] || '🔌'}</text>
         <text x="${x}" y="${y+10}" class="n-name" style="font-size:7px" pointer-events="none">${fmtW(dev.w)}</text>
       `).join('')}
@@ -1981,8 +2066,17 @@ class SmoothEnergyCard extends HTMLElement {
   _startParticles(shadow, d) {
     const totalW = Math.max(1, d.houseW);
     const activeDevNodes = (d.devices || []).filter(dev => dev.w > 50).slice(0, 4);
+    // Device laser color: blend solar (#fbbf24) and grid (#f87171) based on their share of house consumption
+    const solarShare = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
+    const devLaserColor = (() => {
+      // Interpolate between grid-red and solar-yellow
+      const r = Math.round(251 * solarShare + 248 * (1 - solarShare));
+      const g = Math.round(191 * solarShare + 113 * (1 - solarShare));
+      const b = Math.round(36  * solarShare + 113 * (1 - solarShare));
+      return `rgb(${r},${g},${b})`;
+    })();
     const devFlows = activeDevNodes.map((dev, i) => ({
-      id: `pDev${i}`, col: '#fb923c', w: dev.w, active: true
+      id: `pDev${i}`, col: devLaserColor, w: dev.w, active: true
     }));
     [
       { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
