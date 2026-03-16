@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.2.0
+ * Smooth Energy Card v2.3.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.2.0
+ * @version 2.3.0
  */
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -403,11 +403,31 @@ function getChargingReco(d, c, t) {
   return null;
 }
 
-function getSunArc() {
+function getSunArc(hass, config) {
   const now = new Date();
   const h = now.getHours() + now.getMinutes() / 60;
-  const rise = 6.0, set = 21.0;
-  if (h < rise || h > set) return null;
+  let rise = parseFloat(config?.sunrise_hour);
+  let set  = parseFloat(config?.sunset_hour);
+  // Try to use sun.sun entity for accurate local sunrise/sunset
+  const sunEntity = hass?.states?.['sun.sun'];
+  if (sunEntity?.attributes) {
+    const a = sunEntity.attributes;
+    const elev = a.elevation ?? a.solar_elevation ?? -90;
+    if (elev <= 0) return null; // sun is below horizon — no arc
+    if (a.next_rising && a.next_setting) {
+      const nRise = new Date(a.next_rising);
+      const nSet  = new Date(a.next_setting);
+      set  = nSet.getHours()  + nSet.getMinutes()  / 60;
+      // today's rise = next_rising minus one day (it's tomorrow's if sun is up)
+      const todayRise = new Date(nRise.getTime() - 86400000);
+      rise = todayRise.getHours() + todayRise.getMinutes() / 60;
+    }
+  } else {
+    // Fall back to config keys or hardcoded defaults
+    if (isNaN(rise)) rise = 6.0;
+    if (isNaN(set))  set  = 21.0;
+  }
+  if (isNaN(rise) || isNaN(set) || h < rise || h > set) return null;
   const t = (h - rise) / (set - rise);
   const p0 = {x:20,y:100}, p1 = {x:180,y:15}, p2 = {x:340,y:100};
   const mt = 1 - t;
@@ -944,6 +964,54 @@ const CSS = `
   .node-panel-close { background:none; border:none; color:#3d5280; font-size:1.1em; cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0; }
   .node-panel-close:hover { color:#60a5fa; }
   .node-panel-spark { margin-top:8px; opacity:0.85; }
+
+  /* Quick-action buttons */
+  .quick-actions{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px}
+  .qa-btn{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:20px;color:#e2e8f0;font-size:0.8em;padding:5px 12px;cursor:pointer;transition:all 0.2s}
+  .qa-btn:hover{background:rgba(99,179,237,0.2);border-color:#63b3ed}
+  .qa-btn.qa-fired{background:rgba(52,211,153,0.25);border-color:#34d399;animation:qa-pulse 0.4s ease-out}
+  @keyframes qa-pulse{0%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+  /* Savings counter */
+  .savings-counter{margin:4px 12px 6px;padding:8px 14px;border-radius:10px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);font-size:0.82em;color:#fcd34d;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .savings-today{background:rgba(52,211,153,0.15);color:#34d399;border-radius:8px;padding:2px 8px;font-size:0.9em}
+
+  /* Yesterday chips */
+  .yday-chips{display:flex;gap:6px;padding:2px 12px 6px;flex-wrap:wrap}
+  .yday-chip{font-size:0.72em;padding:3px 10px;border-radius:12px;font-weight:600}
+  .chip-up{background:rgba(52,211,153,0.18);color:#34d399}
+  .chip-dn{background:rgba(248,113,113,0.18);color:#f87171}
+
+  /* Records panel */
+  .records-panel{margin:4px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
+  .rec-title{cursor:pointer;padding:8px 12px;font-size:0.82em;font-weight:600;color:#94a3b8;list-style:none}
+  .rec-title::marker,.rec-title::-webkit-details-marker{display:none}
+  .rec-body{padding:6px 12px 10px}
+  .rec-row{font-size:0.8em;color:#cbd5e1;padding:3px 0}
+  .rec-date{color:#64748b;font-size:0.85em;margin-left:6px}
+
+  /* Event log */
+  .event-log-panel{margin:4px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)}
+  .evt-title{cursor:pointer;padding:8px 12px;font-size:0.8em;font-weight:600;color:#64748b;list-style:none;display:flex;align-items:center;gap:6px}
+  .evt-title::marker,.evt-title::-webkit-details-marker{display:none}
+  .evt-count{background:rgba(99,179,237,0.2);color:#63b3ed;border-radius:8px;padding:1px 6px;font-size:0.85em}
+  .evt-body{padding:4px 12px 8px;max-height:160px;overflow-y:auto}
+  .evt-row{display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.78em}
+  .evt-time{color:#475569;min-width:35px;font-family:monospace}
+  .evt-icon{min-width:18px}
+  .evt-text{color:#94a3b8}
+
+  /* CO2 banner */
+  .co2-banner{margin:4px 12px 6px;padding:8px 14px;border-radius:10px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);font-size:0.82em;color:#6ee7b7}
+  .co2-yr{opacity:0.8}
+
+  /* Cheapest window chip */
+  .cheap-window-chip{margin:4px 12px 8px;padding:7px 14px;border-radius:10px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.25);font-size:0.8em;color:#6ee7b7;font-weight:500}
+
+  /* Compact mode */
+  .card-compact .ev-section{padding:8px 12px}
+  .card-compact .section-title{font-size:0.75em;margin:4px 0}
+  .card-compact .stat-card{padding:10px 8px}
 `;
 
 
@@ -1257,6 +1325,7 @@ class SmoothEnergyCard extends HTMLElement {
     shadow.appendChild(style);
     const card = document.createElement('div');
     card.className = 'card';
+    if (this._config.compact) card.classList.add('card-compact');
     if (d) { const extra = this._cardClasses(d); if (extra) card.className += ' ' + extra; }
     card.innerHTML = d ? this._buildCard(d) : `<div style="padding:30px;text-align:center;color:#3d5280;font-size:0.85em">Connecting to Home Assistant…</div>`;
     shadow.appendChild(card);
@@ -1294,6 +1363,12 @@ class SmoothEnergyCard extends HTMLElement {
     const card = shadow.querySelector('.card');
     if (!card) { this._render(); return; }
 
+    const hide = new Set([
+      ...(this._config.hide || []),
+      ...(this._config.compact ? ['devices','forecast','eco_badges','power_chart','ev_optimizer','dev_scheduler','grid_alerts','budget','price_chart'] : [])
+    ]);
+    if (this._config.compact) card.classList.add('card-compact'); else card.classList.remove('card-compact');
+
     // WOW: ambient glow + peak alarm + eclipse shadow classes
     const newClasses = this._cardClasses(d);
     ['amb-surplus','amb-import','amb-aurora','peak-alarm','weather-cloudy'].forEach(c => card.classList.remove(c));
@@ -1310,12 +1385,13 @@ class SmoothEnergyCard extends HTMLElement {
     this._wasPeak = isPeak;
     // WOW #4: grid shockwave on import → export transition
     const isExp = d.isExp;
-    if (isExp && !this._wasExport) this._gridShockwave(shadow);
+    if (isExp && !this._wasExport) { this._gridShockwave(shadow); this._logEvent('⚡', 'Export started'); }
     this._wasExport = isExp;
     // WOW #3: solar burst on new daily peak
     if (d.solarW > 50 && d.solarW > (this._solarPeakToday || 0)) {
       this._solarPeakToday = d.solarW;
       this._solarBurst(shadow);
+      this._logEvent('☀️', `Solar peak: ${fmtW(d.solarW)}`);
     }
 
     // WOW: export fireworks on new export record
@@ -1377,47 +1453,100 @@ class SmoothEnergyCard extends HTMLElement {
     // Grid outage banner
     const gridOutageEl = card.querySelector('[data-uid="grid-outage"]');
     if (gridOutageEl) gridOutageEl.innerHTML = this._buildGridOutage(d);
+    if (!d.gridConnected && !this._wasGridOut) this._logEvent('🔴', 'Grid outage detected');
+    this._wasGridOut = !d.gridConnected;
 
     // Charging recommendation
-    const recoEl = card.querySelector('[data-uid="charging-reco"]');
-    if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+    if (!hide.has('reco')) {
+      const recoEl = card.querySelector('[data-uid="charging-reco"]');
+      if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+    }
 
     // Budget tracker
-    const budgetEl = card.querySelector('[data-uid="budget-tracker"]');
-    if (budgetEl) budgetEl.innerHTML = this._buildBudgetTracker(d);
+    if (!hide.has('budget')) {
+      const budgetEl = card.querySelector('[data-uid="budget-tracker"]');
+      if (budgetEl) budgetEl.innerHTML = this._buildBudgetTracker(d);
+    }
 
     // Power chart
-    const powerChartEl = card.querySelector('[data-uid="power-chart"]');
-    if (powerChartEl) powerChartEl.innerHTML = this._buildPowerChart();
+    if (!hide.has('power_chart')) {
+      const powerChartEl = card.querySelector('[data-uid="power-chart"]');
+      if (powerChartEl) powerChartEl.innerHTML = this._buildPowerChart();
+    }
 
     // Price chart
-    const priceChartEl = card.querySelector('[data-uid="price-chart"]');
-    if (priceChartEl) priceChartEl.innerHTML = this._buildPriceChart(d);
+    if (!hide.has('price_chart')) {
+      const priceChartEl = card.querySelector('[data-uid="price-chart"]');
+      if (priceChartEl) priceChartEl.innerHTML = this._buildPriceChart(d);
+    }
 
     // Eco badges (CO₂, battery health, load profile)
-    const ecoBadgesEl = card.querySelector('[data-uid="eco-badges"]');
-    if (ecoBadgesEl) ecoBadgesEl.innerHTML = this._buildEcoBadges(d);
+    if (!hide.has('eco_badges')) {
+      const ecoBadgesEl = card.querySelector('[data-uid="eco-badges"]');
+      if (ecoBadgesEl) ecoBadgesEl.innerHTML = this._buildEcoBadges(d);
+    }
 
     // EV optimizer + device scheduler
-    const evOptEl = card.querySelector('[data-uid="ev-optimizer"]');
-    if (evOptEl) evOptEl.innerHTML = this._buildEvOptimizer(d);
-    const devSchedEl = card.querySelector('[data-uid="dev-scheduler"]');
-    if (devSchedEl) devSchedEl.innerHTML = this._buildDevScheduler(d);
+    if (!hide.has('ev_optimizer')) {
+      const evOptEl = card.querySelector('[data-uid="ev-optimizer"]');
+      if (evOptEl) evOptEl.innerHTML = this._buildEvOptimizer(d);
+    }
+    if (!hide.has('dev_scheduler')) {
+      const devSchedEl = card.querySelector('[data-uid="dev-scheduler"]');
+      if (devSchedEl) devSchedEl.innerHTML = this._buildDevScheduler(d);
+    }
 
     // Grid demand + peak shaving alerts
-    const gridAlertsEl = card.querySelector('[data-uid="grid-alerts"]');
-    if (gridAlertsEl) gridAlertsEl.innerHTML = this._buildGridAlerts(d);
+    if (!hide.has('grid_alerts')) {
+      const gridAlertsEl = card.querySelector('[data-uid="grid-alerts"]');
+      if (gridAlertsEl) gridAlertsEl.innerHTML = this._buildGridAlerts(d);
+    }
 
     // EV section — update in-place to preserve running CSS animations
-    this._patchEvGrid(card, d);
+    if (!hide.has('ev')) this._patchEvGrid(card, d);
 
     // Devices
-    const devicesGrid = card.querySelector('[data-uid="devices-grid"]');
-    if (devicesGrid) devicesGrid.innerHTML = d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('');
+    if (!hide.has('devices')) {
+      const devicesGrid = card.querySelector('[data-uid="devices-grid"]');
+      if (devicesGrid) devicesGrid.innerHTML = d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('');
+    }
 
     // Forecast
-    const forecastEl = card.querySelector('[data-uid="forecast-row"]');
-    if (forecastEl) forecastEl.innerHTML = this._buildForecast(d);
+    if (!hide.has('forecast')) {
+      const forecastEl = card.querySelector('[data-uid="forecast-row"]');
+      if (forecastEl) forecastEl.innerHTML = this._buildForecast(d);
+    }
+
+    // Savings counter
+    this._updateSavingsLog(d);
+    if (!hide.has('savings')) {
+      const savEl = card.querySelector('[data-uid="savings-counter"]');
+      if (savEl) savEl.innerHTML = this._buildSavingsCounter(d);
+    }
+
+    // Yesterday chips
+    this._updateDailyLog(d);
+    const ydayEl = card.querySelector('[data-uid="yday-chips"]');
+    if (ydayEl) ydayEl.innerHTML = this._buildYesterdayChips(d);
+
+    // CO2 banner
+    if (!hide.has('co2')) {
+      const co2El = card.querySelector('[data-uid="co2-banner"]');
+      if (co2El) co2El.innerHTML = this._buildCo2Banner(d);
+    }
+
+    // Records
+    this._updateRecords(d);
+    if (!hide.has('records')) {
+      const recEl = card.querySelector('[data-uid="records"]');
+      if (recEl) recEl.innerHTML = this._buildRecords();
+    }
+
+    // Event log
+    if (!hide.has('event_log')) {
+      const evtEl = card.querySelector('[data-uid="event-log"]');
+      if (evtEl) evtEl.innerHTML = this._buildEventLog();
+    }
 
     // Particles + cable
     this._clearParticles();
@@ -1770,12 +1899,27 @@ class SmoothEnergyCard extends HTMLElement {
       if (i % 3 !== 0) return '';
       return `<text x="${i*(barW+1)+barW/2}" y="${H+9}" text-anchor="middle" font-size="7" fill="#3d5280">${h}h</text>`;
     }).join('');
+    // Feature H: cheapest 2h window
+    let cheapChip = '';
+    if (upcoming.length >= 2) {
+      let best = null, bestAvg = Infinity;
+      for (let i = 0; i <= upcoming.length - 2; i++) {
+        const avg = (upcoming[i] + upcoming[i+1]) / 2;
+        if (avg < bestAvg) { bestAvg = avg; best = i; }
+      }
+      if (best !== null) {
+        const h1 = (nowH + best) % 24;
+        const h2 = (nowH + best + 2) % 24;
+        const hStr = `${String(h1).padStart(2,'0')}:00–${String(h2).padStart(2,'0')}:00`;
+        cheapChip = `<div class="cheap-window-chip">🔌 Optimal charge window: ${hStr} · avg €${bestAvg.toFixed(3)}/kWh</div>`;
+      }
+    }
     return `<div class="price-chart">
       <div class="price-chart-title">⚡ Tariff next 12h</div>
       <svg viewBox="0 0 ${W} ${H+12}" height="${H+12}">
         ${bars}${labels}
       </svg>
-    </div>`;
+    </div>${cheapChip}`;
   }
 
   // #2 History modal — 7-day bar chart (async, called via tap)
@@ -1950,8 +2094,159 @@ class SmoothEnergyCard extends HTMLElement {
     return [amb, peak, cloud].filter(Boolean).join(' ');
   }
 
+  // ─── Feature B: Cumulative savings counter ─────────────────────────────────
+  _updateSavingsLog(d) {
+    if (!d.savingsToday || d.savingsToday <= 0) return;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = localStorage.getItem('sec-savings-log');
+      const log = raw ? JSON.parse(raw) : {};
+      log[today] = Math.max(log[today] || 0, d.savingsToday);
+      const keys = Object.keys(log).sort();
+      if (keys.length > 730) keys.slice(0, keys.length - 730).forEach(k => delete log[k]);
+      localStorage.setItem('sec-savings-log', JSON.stringify(log));
+    } catch(e) {}
+  }
+
+  _buildSavingsCounter(d) {
+    try {
+      const raw = localStorage.getItem('sec-savings-log');
+      if (!raw) return '';
+      const log = JSON.parse(raw);
+      const keys = Object.keys(log).sort();
+      if (keys.length < 2) return '';
+      const total = Object.values(log).reduce((a, b) => a + b, 0);
+      const months = Math.max(1, Math.round(keys.length / 30));
+      const today = new Date().toISOString().slice(0, 10);
+      const todayVal = d.savingsToday > 0 ? d.savingsToday : (log[today] || 0);
+      const todayStr = todayVal > 0.01 ? `<span class="savings-today">+€${todayVal.toFixed(2)} today</span>` : '';
+      return `<div class="savings-counter">☀️ ${this._t('total_saved') || 'Total saved'}: <strong>€${total.toFixed(0)}</strong> over ${months} month${months>1?'s':''} ${todayStr}</div>`;
+    } catch(e) { return ''; }
+  }
+
+  // ─── Feature C: Quick-action buttons ────────────────────────────────────────
+  _buildQuickActions() {
+    const actions = this._config.quick_actions || [];
+    if (!actions.length) return '';
+    const pills = actions.map((a, i) =>
+      `<button class="qa-btn" data-qa-idx="${i}" title="${a.label||''}">${a.icon||'⚡'} ${a.label||'Action'}</button>`
+    ).join('');
+    return `<div class="quick-actions">${pills}</div>`;
+  }
+
+  // ─── Feature D: Yesterday comparison chips ──────────────────────────────────
+  _updateDailyLog(d) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = localStorage.getItem('sec-daily-log');
+      const log = raw ? JSON.parse(raw) : {};
+      const entry = log[today] || {};
+      if (d.solarToday != null) entry.solar = d.solarToday;
+      if (d.daySuffPct != null) entry.suff = d.daySuffPct;
+      if (d.netDayEur != null) entry.cost = d.netDayEur;
+      log[today] = entry;
+      const keys = Object.keys(log).sort();
+      if (keys.length > 60) keys.slice(0, keys.length-60).forEach(k=>delete log[k]);
+      localStorage.setItem('sec-daily-log', JSON.stringify(log));
+    } catch(e) {}
+  }
+
+  _buildYesterdayChips(d) {
+    try {
+      const raw = localStorage.getItem('sec-daily-log');
+      if (!raw) return '';
+      const log = JSON.parse(raw);
+      const keys = Object.keys(log).sort();
+      if (keys.length < 2) return '';
+      const ydata = log[keys[keys.length-2]];
+      if (!ydata) return '';
+      const chips = [];
+      if (d.solarToday != null && ydata.solar > 0.1) {
+        const pct = Math.round((d.solarToday-ydata.solar)/ydata.solar*100);
+        chips.push(`<span class="yday-chip ${pct>=0?'chip-up':'chip-dn'}">☀️ ${pct>=0?'+':''}${pct}% vs yday</span>`);
+      }
+      if (d.daySuffPct != null && ydata.suff > 0) {
+        const diff = Math.round(d.daySuffPct-ydata.suff);
+        chips.push(`<span class="yday-chip ${diff>=0?'chip-up':'chip-dn'}">🏠 ${diff>=0?'+':''}${diff}pp suff.</span>`);
+      }
+      if (!chips.length) return '';
+      return `<div class="yday-chips">${chips.join('')}</div>`;
+    } catch(e) { return ''; }
+  }
+
+  // ─── Feature E: Personal records hall of fame ────────────────────────────────
+  _updateRecords(d) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const raw = localStorage.getItem('sec-records');
+      const rec = raw ? JSON.parse(raw) : {};
+      let changed = false;
+      if (d.solarToday > (rec.bestSolarKwh||0)) { rec.bestSolarKwh=d.solarToday; rec.bestSolarDate=today; changed=true; }
+      if (d.daySuffPct > (rec.bestSuffPct||0)) { rec.bestSuffPct=d.daySuffPct; rec.bestSuffDate=today; changed=true; }
+      if (d.gridExpW > (rec.bestExpW||0)) { rec.bestExpW=d.gridExpW; rec.bestExpDate=today; changed=true; }
+      if (changed) localStorage.setItem('sec-records', JSON.stringify(rec));
+    } catch(e) {}
+  }
+
+  _buildRecords() {
+    try {
+      const raw = localStorage.getItem('sec-records');
+      if (!raw) return '';
+      const rec = JSON.parse(raw);
+      if (!rec.bestSolarKwh && !rec.bestSuffPct) return '';
+      const rows = [];
+      if (rec.bestSolarKwh) rows.push(`<div class="rec-row">🏆 Best solar day: <strong>${rec.bestSolarKwh.toFixed(1)} kWh</strong> <span class="rec-date">${rec.bestSolarDate||''}</span></div>`);
+      if (rec.bestSuffPct) rows.push(`<div class="rec-row">🥇 Best self-sufficiency: <strong>${Math.round(rec.bestSuffPct)}%</strong> <span class="rec-date">${rec.bestSuffDate||''}</span></div>`);
+      if (rec.bestExpW) rows.push(`<div class="rec-row">⚡ Peak export: <strong>${fmtW(rec.bestExpW)}</strong> <span class="rec-date">${rec.bestExpDate||''}</span></div>`);
+      return `<details class="records-panel"><summary class="rec-title">🏅 Personal Records</summary><div class="rec-body">${rows.join('')}</div></details>`;
+    } catch(e) { return ''; }
+  }
+
+  // ─── Feature F: In-card event log ───────────────────────────────────────────
+  _logEvent(icon, text) {
+    if (!this._eventLog) this._eventLog = [];
+    const now = new Date();
+    const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    this._eventLog.unshift({icon, text, time: ts});
+    if (this._eventLog.length > 20) this._eventLog.length = 20;
+  }
+
+  _buildEventLog() {
+    if (!this._eventLog?.length) return '';
+    const rows = this._eventLog.map(e =>
+      `<div class="evt-row"><span class="evt-time">${e.time}</span><span class="evt-icon">${e.icon}</span><span class="evt-text">${e.text}</span></div>`
+    ).join('');
+    return `<details class="event-log-panel"><summary class="evt-title">📋 Event Log <span class="evt-count">${this._eventLog.length}</span></summary><div class="evt-body">${rows}</div></details>`;
+  }
+
+  // ─── Feature G: CO₂ savings banner ──────────────────────────────────────────
+  _buildCo2Banner(d) {
+    const selfUsedKwh = d.solarToday != null
+      ? d.solarToday * (d.daySuffPct != null ? Math.min(1, d.daySuffPct/100) : 0.7)
+      : null;
+    if (!selfUsedKwh || selfUsedKwh < 0.05) return '';
+    const gToday = selfUsedKwh * 400;
+    let yearlyKg = 0;
+    try {
+      const raw = localStorage.getItem('sec-savings-log');
+      if (raw && d.price > 0) {
+        const log = JSON.parse(raw);
+        const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear()-1);
+        const cutStr = cutoff.toISOString().slice(0,10);
+        yearlyKg = Object.entries(log).filter(([k])=>k>=cutStr).reduce((a,[,v])=>a+v,0) / (d.price||0.2) * 0.4;
+      }
+    } catch(e) {}
+    const todayStr = gToday >= 1000 ? `${(gToday/1000).toFixed(1)} kg` : `${Math.round(gToday)} g`;
+    const yearStr = yearlyKg >= 1 ? ` · <span class="co2-yr">${Math.round(yearlyKg)} kg saved this year</span>` : '';
+    return `<div class="co2-banner">🌱 CO₂ saved today: <strong>${todayStr}</strong>${yearStr}</div>`;
+  }
+
   _buildCard(d) {
     const c = this._config;
+    const hide = new Set([
+      ...(c.hide || []),
+      ...(c.compact ? ['devices','forecast','eco_badges','power_chart','ev_optimizer','dev_scheduler','grid_alerts','budget','price_chart'] : [])
+    ]);
     const priceStr = d.price != null ? d.price.toFixed(3) + ' €' : '—';
     const hasSurplus = d.surplusW > 50;
     return `
@@ -1973,13 +2268,14 @@ class SmoothEnergyCard extends HTMLElement {
           <button class="fullscreen-btn" data-action="fullscreen" title="Fullscreen">⛶</button>
         </div>
       </div>
-      ${this._buildTempoBanner(d)}
+      ${this._buildQuickActions()}
+      ${!hide.has('tempo') ? this._buildTempoBanner(d) : ''}
       <div data-uid="grid-outage">${this._buildGridOutage(d)}</div>
       <div class="flow-wrap" data-uid="flow-wrap" style="position:relative">
         <div class="orb-detail-panel" data-uid="orb-detail" hidden></div>
         ${this._buildFlowSVG(d)}${this._buildWeatherPopup(d)}</div>
-      <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
-      <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
+      ${!hide.has('surplus') ? `<div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>` : '<div data-uid="surplus-wrap"></div>'}
+      ${!hide.has('gauge') ? `<div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>` : '<div data-uid="suff-wrap"></div>'}
       <div class="stats-tabs" data-uid="stats-tabs">
         <div class="stats-tab active" data-tab="live">⚡ Live</div>
         <div class="stats-tab" data-tab="today">📅 Today</div>
@@ -1991,25 +2287,30 @@ class SmoothEnergyCard extends HTMLElement {
         <div data-uid="daily-summary-tab">${this._buildDailySummary(d)}</div>
       </div>
       <div data-uid="daily-summary" style="display:none"></div>
-      <div data-uid="price-chart">${this._buildPriceChart(d)}</div>
-      <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
-      <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
-      <div data-uid="budget-tracker">${this._buildBudgetTracker(d)}</div>
-      <div data-uid="power-chart">${this._buildPowerChart()}</div>
-      <div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>
-      <div data-uid="dev-scheduler">${this._buildDevScheduler(d)}</div>
-      <div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>
-      <div class="ev-section">
+      <div data-uid="savings-counter">${!hide.has('savings') ? this._buildSavingsCounter(d) : ''}</div>
+      <div data-uid="yday-chips">${!hide.has('yday_chips') ? this._buildYesterdayChips(d) : ''}</div>
+      ${!hide.has('co2') ? `<div data-uid="co2-banner">${this._buildCo2Banner(d)}</div>` : ''}
+      ${!hide.has('price_chart') ? `<div data-uid="price-chart">${this._buildPriceChart(d)}</div>` : '<div data-uid="price-chart"></div>'}
+      ${!hide.has('eco_badges') ? `<div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>` : '<div data-uid="eco-badges"></div>'}
+      <div data-uid="charging-reco">${!hide.has('reco') ? this._buildChargingReco(d) : ''}</div>
+      ${!hide.has('budget') ? `<div data-uid="budget-tracker">${this._buildBudgetTracker(d)}</div>` : '<div data-uid="budget-tracker"></div>'}
+      ${!hide.has('power_chart') ? `<div data-uid="power-chart">${this._buildPowerChart()}</div>` : '<div data-uid="power-chart"></div>'}
+      ${!hide.has('ev_optimizer') ? `<div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>` : '<div data-uid="ev-optimizer"></div>'}
+      ${!hide.has('dev_scheduler') ? `<div data-uid="dev-scheduler">${this._buildDevScheduler(d)}</div>` : '<div data-uid="dev-scheduler"></div>'}
+      ${!hide.has('grid_alerts') ? `<div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>` : '<div data-uid="grid-alerts"></div>'}
+      ${!hide.has('ev') ? `<div class="ev-section">
         <div class="section-title">${this._t('ev_section')}</div>
         <div class="ev-grid" data-uid="ev-grid">
           ${this._buildCharger(d)}
           ${d.extraChargers.map((ch, i) => this._buildExtraCharger(ch, i)).join('')}
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
-      </div>
-      <div class="section-title">${this._t('dev_section')}</div>
-      <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>
-      <div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>`;
+      </div>` : ''}
+      ${!hide.has('devices') ? `<div class="section-title">${this._t('dev_section')}</div>
+      <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>` : ''}
+      ${!hide.has('records') ? `<div data-uid="records">${this._buildRecords()}</div>` : ''}
+      <div data-uid="event-log">${!hide.has('event_log') ? this._buildEventLog() : ''}</div>
+      ${!hide.has('forecast') ? `<div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>` : '<div data-uid="forecast-row"></div>'}`;
   }
 
   _buildFlowSVG(d) {
@@ -2033,7 +2334,7 @@ class SmoothEnergyCard extends HTMLElement {
     const bDisPth=`M${bP.x},${bP.y} C${(bP.x+hP.x)/2},${bP.y} ${(bP.x+hP.x)/2},${hP.y} ${hP.x},${hP.y}`;
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
     const vSolarPct=(vOn&&d.svgV2cW>0)?Math.round((d.solarFreeW/d.svgV2cW)*100):0;
-    const sun = getSunArc();
+    const sun = getSunArc(this._hass, this._config);
     // Device laser color: blend solar-yellow ↔ grid-red by solar share
     const solarShareSvg = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
     const devCol = `rgb(${Math.round(251*solarShareSvg+248*(1-solarShareSvg))},${Math.round(191*solarShareSvg+113*(1-solarShareSvg))},${Math.round(36*solarShareSvg+113*(1-solarShareSvg))})`;
@@ -3083,6 +3384,21 @@ class SmoothEnergyCard extends HTMLElement {
               });
             });
           });
+        }
+      });
+    });
+
+    // Feature C: Quick-action buttons
+    shadow.querySelectorAll('.qa-btn').forEach(qaBtn => {
+      qaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(qaBtn.dataset.qaIdx);
+        const a = (this._config.quick_actions||[])[idx];
+        if (a?.service) {
+          const [dom, svc] = a.service.split('.');
+          this._hass.callService(dom, svc, a.entity ? {entity_id:a.entity,...(a.data||{})} : (a.data||{}));
+          qaBtn.classList.add('qa-fired');
+          setTimeout(()=>qaBtn.classList.remove('qa-fired'), 600);
         }
       });
     });
