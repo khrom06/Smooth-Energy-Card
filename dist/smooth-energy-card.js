@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.4.0
+ * Smooth Energy Card v2.5.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.4.0
+ * @version 2.5.0
  */
 
-const VERSION = '2.4.0';
+const VERSION = '2.5.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -53,6 +53,10 @@ const TRANSLATIONS = {
     dev_sched_wait:'⏳ Delay heavy appliances — tariff is high',
     weather_lbl:'Weather',
     total_saved:'Total saved',
+    ev_plan_title:'Solar Charge Planner',
+    ev_plan_window:(s,e,kwh) => `Best window: ${s}–${e} · ~${kwh} kWh free`,
+    ev_plan_now_surplus: kw => `☀️ ${kw} surplus now — free charging available`,
+    ev_plan_no_fc:'No forecast — showing live conditions',
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -97,6 +101,10 @@ const TRANSLATIONS = {
     dev_sched_wait:'⏳ Différez les appareils gourmands — tarif élevé',
     weather_lbl:'Météo',
     total_saved:'Total économisé',
+    ev_plan_title:'Planificateur solaire VE',
+    ev_plan_window:(s,e,kwh) => `Meilleure fenêtre : ${s}–${e} · ~${kwh} kWh gratuits`,
+    ev_plan_now_surplus: kw => `☀️ ${kw} surplus maintenant — charge gratuite disponible`,
+    ev_plan_no_fc:'Pas de prévision — conditions en direct',
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -141,6 +149,10 @@ const TRANSLATIONS = {
     dev_sched_wait:'⏳ Retrasa electrodomésticos pesados — tarifa alta',
     weather_lbl:'Tiempo',
     total_saved:'Total ahorrado',
+    ev_plan_title:'Planificador solar VE',
+    ev_plan_window:(s,e,kwh) => `Mejor ventana: ${s}–${e} · ~${kwh} kWh gratis`,
+    ev_plan_now_surplus: kw => `☀️ ${kw} excedente ahora — carga gratuita disponible`,
+    ev_plan_no_fc:'Sin previsión — mostrando condiciones en vivo',
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -185,6 +197,10 @@ const TRANSLATIONS = {
     dev_sched_wait:'⏳ 延迟大功率设备 — 当前电价高',
     weather_lbl:'天气',
     total_saved:'总节省',
+    ev_plan_title:'太阳能充电规划',
+    ev_plan_window:(s,e,kwh) => `最佳窗口: ${s}–${e} · ~${kwh} kWh免费`,
+    ev_plan_now_surplus: kw => `☀️ 当前盈余 ${kw} — 可免费充电`,
+    ev_plan_no_fc:'无预报数据 — 显示实时状态',
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -229,6 +245,10 @@ const TRANSLATIONS = {
     dev_sched_wait:'⏳ 大型機器を遅らせる — 現在料金高',
     weather_lbl:'天気',
     total_saved:'合計節約額',
+    ev_plan_title:'太陽光充電プランナー',
+    ev_plan_window:(s,e,kwh) => `最適時間帯: ${s}–${e} · ~${kwh} kWh無料`,
+    ev_plan_now_surplus: kw => `☀️ 現在余剰 ${kw} — 無料充電可能`,
+    ev_plan_no_fc:'予報なし — リアルタイム状況を表示',
   },
 };
 
@@ -1052,6 +1072,19 @@ const CSS = `
 
   /* ── Feature 8: EV charge-by-solar planner ── */
   .ev-solar-plan{font-size:0.62em;color:#fbbf24;text-align:center;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:2px 6px;width:100%;margin-top:2px}
+  .ev-planner{margin:4px 12px 0;padding:8px 12px;border-radius:10px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2)}
+  .ev-planner-header{display:flex;align-items:center;gap:6px;font-weight:700;color:#fbbf24;margin-bottom:6px;font-size:0.82em}
+  .ev-planner-window{font-size:0.8em;font-weight:600;color:#fde68a;margin-bottom:4px}
+  .ev-planner-chart{display:flex;gap:2px;align-items:flex-end;height:28px;margin-bottom:6px}
+  .ev-planner-bar{flex:1;border-radius:1px 1px 0 0;min-height:2px;transition:opacity 0.2s}
+  .ev-planner-bar.free{background:#34d399}.ev-planner-bar.partial{background:#fbbf24}.ev-planner-bar.none{background:rgba(255,255,255,0.1)}
+  .ev-planner-evrow{display:flex;align-items:center;gap:6px;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);font-size:0.8em;color:#cbd5e1}
+  .ev-planner-evname{color:#e2e8f0;font-weight:600;min-width:70px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .ev-planner-label-free{color:#34d399;font-weight:700}
+  .ev-planner-label-mixed{color:#fbbf24}
+  .ev-planner-label-grid{color:#f87171}
+  .ev-planner-kwh{opacity:0.5;margin-left:auto;font-size:0.85em}
+  .ev-planner-now{display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.83em}
 
   /* ── Feature 9: Demand Heatmap ── */
   .heatmap-panel{margin:4px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)}
@@ -2224,19 +2257,96 @@ class SmoothEnergyCard extends HTMLElement {
 
   // #17 EV charging optimizer
   _buildEvOptimizer(d) {
-    if (!this._config.evs || this._config.evs.length === 0) return '';
-    const anyEVNeedsCharge = d.evData.some(ev => ev.bat < (ev.targetSoc || 90));
-    if (!anyEVNeedsCharge) return '';
-    let msg = null;
-    if (d.surplusW > 1400) {
-      msg = { cls:'reco-free', text: this._t('ev_opt_solar') };
-    } else if (d.price != null && parseFloat(this._config.price_alert_low) && d.price <= parseFloat(this._config.price_alert_low)) {
-      msg = { cls:'reco-good', text: this._t('ev_opt_cheap', d.price.toFixed(3)+' €/kWh') };
-    } else if (d.price != null && parseFloat(this._config.price_alert_high) && d.price >= parseFloat(this._config.price_alert_high)) {
-      msg = { cls:'reco-warn', text: this._t('ev_opt_wait') };
+    const c = this._config;
+    if (!c.evs || c.evs.length === 0) return '';
+    const evNeedCharge = d.evData.filter(ev => ev.bat < (ev.targetSoc ?? 90));
+    if (!evNeedCharge.length) return '';
+
+    // ── Try hourly solar forecast ────────────────────────────────────────────
+    const fc = this._hass?.states?.[c.solar_forecast_today];
+    const slots = fc ? (fc.attributes?.detailedForecast || fc.attributes?.hourly_forecast || fc.attributes?.forecast || null) : null;
+    const nowH = new Date().getHours() + new Date().getMinutes() / 60;
+    const houseBase = d.houseW;
+
+    if (Array.isArray(slots) && slots.length >= 3) {
+      const hourly = slots.map(s => {
+        const t = new Date(s.period_start || s.datetime || s.time || 0);
+        const h = t.getHours() + t.getMinutes() / 60;
+        let v = parseFloat(s.pv_estimate || s.value || s.power || 0);
+        if (v > 0 && v < 50) v *= 1000; // kW → W
+        return { h, v, label: `${String(t.getHours()).padStart(2,'0')}:00` };
+      }).filter(s => s.h >= nowH - 0.5 && s.v >= 0).slice(0, 24);
+
+      if (hourly.length >= 2) {
+        const maxFc = Math.max(...hourly.map(s => s.v), 1);
+        const surplus = hourly.map(s => ({ ...s, sur: Math.max(0, s.v - houseBase) }));
+
+        // Find best contiguous surplus window
+        let bestStart = null, bestEnd = null, bestKwh = 0;
+        let i = 0;
+        while (i < surplus.length) {
+          if (surplus[i].sur < 200) { i++; continue; }
+          let j = i, acc = 0;
+          while (j < surplus.length && surplus[j].sur >= 200) { acc += surplus[j].sur / 1000; j++; }
+          if (acc > bestKwh) { bestKwh = acc; bestStart = surplus[i]; bestEnd = surplus[j - 1]; }
+          i = j;
+        }
+
+        // Mini bar chart
+        const bars = hourly.map(s => {
+          const bH = Math.max(2, Math.round((s.v / maxFc) * 26));
+          const sur = Math.max(0, s.v - houseBase);
+          const cls = sur > 1000 ? 'free' : sur > 200 ? 'partial' : 'none';
+          return `<div class="ev-planner-bar ${cls}" style="height:${bH}px" title="${s.label} · ${fmtW(s.v)}"></div>`;
+        }).join('');
+
+        const fmt = h => `${String(Math.floor(h)).padStart(2,'0')}:00`;
+        const windowStr = bestStart
+          ? `${fmt(bestStart.h)}–${fmt(bestEnd.h + 1)} · ~${bestKwh.toFixed(1)} kWh free`
+          : 'No surplus window forecast today';
+
+        // Per-EV rows
+        const evRows = evNeedCharge.map(ev => {
+          const cap = parseFloat(ev.battery_capacity) || 60;
+          const tgt = ev.targetSoc ?? 100;
+          const kwhNeed = Math.max(0, (tgt - ev.bat) / 100) * cap;
+          const freeKwh = bestStart ? Math.min(kwhNeed, bestKwh) : 0;
+          const gridKwh = Math.max(0, kwhNeed - freeKwh);
+          const gridCost = gridKwh > 0.5 && d.price != null ? gridKwh * d.price : 0;
+
+          let label, cls;
+          if (kwhNeed < 0.5) { label = '✓ Full'; cls = 'ev-planner-label-free'; }
+          else if (!bestStart) { label = d.price != null ? `€${(kwhNeed * d.price).toFixed(2)} grid` : 'No free window'; cls = 'ev-planner-label-grid'; }
+          else if (gridKwh < 1) { label = `☀️ FREE ✓`; cls = 'ev-planner-label-free'; }
+          else if (freeKwh > 1) { label = `${freeKwh.toFixed(1)} kWh free + €${gridCost.toFixed(2)} grid`; cls = 'ev-planner-label-mixed'; }
+          else { label = `€${gridCost.toFixed(2)} grid`; cls = 'ev-planner-label-grid'; }
+
+          return `<div class="ev-planner-evrow">
+            <span class="ev-planner-evname">${ev.name || 'EV'}</span>
+            <span class="${cls}">${label}</span>
+            <span class="ev-planner-kwh">${kwhNeed.toFixed(0)} kWh needed</span>
+          </div>`;
+        }).join('');
+
+        return `<div class="ev-planner">
+          <div class="ev-planner-header">🌞 ${this._t('ev_plan_title')}</div>
+          <div class="ev-planner-window">${windowStr}</div>
+          <div class="ev-planner-chart">${bars}</div>
+          ${evRows}
+        </div>`;
+      }
     }
+
+    // ── Fallback: no forecast — use live conditions ──────────────────────────
+    let msg = null, col = null;
+    if (d.surplusW > 1400) { msg = this._t('ev_opt_solar'); col = '#34d399'; }
+    else if (d.price != null && parseFloat(c.price_alert_low) && d.price <= parseFloat(c.price_alert_low)) { msg = this._t('ev_opt_cheap', d.price.toFixed(3)+' €/kWh'); col = '#34d399'; }
+    else if (d.price != null && parseFloat(c.price_alert_high) && d.price >= parseFloat(c.price_alert_high)) { msg = this._t('ev_opt_wait'); col = '#f87171'; }
     if (!msg) return '';
-    return `<div class="charging-reco ${msg.cls}"><span class="reco-icon">🚗</span><span class="reco-text">${msg.text}</span></div>`;
+    return `<div class="ev-planner">
+      <div class="ev-planner-header">🌞 ${this._t('ev_plan_title')}</div>
+      <div class="ev-planner-now" style="color:${col}">${msg}</div>
+    </div>`;
   }
 
   // #22 Device scheduler

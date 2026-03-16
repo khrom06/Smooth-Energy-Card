@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -213,7 +213,13 @@ hide:                          # hide individual sections by name (all shown by 
 | `battery_power` | entity | — | Battery/ESS power — **positive = charging, negative = discharging** |
 | `battery_soc` | entity | — | Battery state of charge (%) |
 | `battery_rated_capacity` | number | `0` | Battery kWh capacity — enables health indicator |
+| `battery_cycles` | sensor | — | Battery charge cycle count — used for SoH estimation |
+| `battery_purchase_date` | string | — | Battery purchase date (YYYY-MM-DD) — used for SoH estimation |
 | `co2_intensity` | entity | — | Grid CO₂ intensity (g/kWh); defaults to 400 g/kWh |
+| `co2_grid_intensity` | sensor | — | Live grid CO₂ intensity (gCO₂/kWh) — shows green/amber/red badge |
+| `heat_pump_power` | sensor | — | Heat pump power (W or kW) — shown as SVG node |
+| `diverter_power` | sensor | — | Solar diverter power (W or kW) |
+| `diverter_today_kwh` | sensor | — | Solar diverter daily kWh |
 | `weather_entity` | entity | — | Weather entity for condition icon on solar orb |
 | `weather_forecast_entity` | entity | — | Weather entity for hourly forecast popup |
 | `sunrise_hour` | number | `6` | Override sunrise hour if `sun.sun` is unavailable |
@@ -288,6 +294,10 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v2.5.0
+- **EV Solar Charge Planner**: reads your solar forecast sensor's hourly data, finds the best free-solar charging window, and shows per-EV cost breakdown (kWh free vs grid). Mini bar chart shows hourly surplus forecast.
+- **Fix**: Personal Records and Event Log panels no longer auto-collapse on HA state updates.
 
 ### v2.4.0 (2026-03-16)
 - **Fix:** Personal Records, Event Log and Weekly Heatmap `<details>` panels no longer collapse on every HA state update — `_patch()` now preserves `open` state before innerHTML replacement
