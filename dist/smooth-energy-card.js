@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.9.0';
+const VERSION = '1.9.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -578,6 +578,8 @@ const CSS = `
   .ev-range{font-size:0.8em;font-weight:700;color:#8899cc;}
   .ev-range em{font-style:normal;font-size:0.8em;color:#3d5280;}
   .ev-eta{font-size:0.62em;font-weight:700;color:#34d399;text-align:center;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:6px;padding:2px 6px;width:100%;animation:eta-fade 1.2s ease-in-out infinite alternate;}
+  .ev-cost{font-size:0.68em;font-weight:700;color:#fbbf24;text-align:center;margin-top:2px;letter-spacing:0.02em;}
+  .charging-badge-solo{font-size:0.68em;font-weight:800;color:#052e16;background:rgba(52,211,153,0.9);border-radius:6px;padding:2px 7px;text-align:center;animation:badge-blink 1s ease-in-out infinite alternate;margin-bottom:2px;}
   .ev-warranty { font-size:0.55em; font-weight:700; text-align:center; border-radius:5px; padding:2px 5px; border:1px solid; }
   .ev-warranty.ok  { color:#34d399; background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.2); }
   .ev-warranty.warn{ color:#fbbf24; background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.2); }
@@ -972,7 +974,8 @@ class SmoothEnergyCard extends HTMLElement {
     const fcTomorrow    = numState(h, c.solar_forecast_tomorrow, null);
     const v2cSessionKwh = numState(h, c.v2c_session_energy, null);
 
-    const chargerActive = Math.abs(v2cW) > 10;
+    const anyExtraChargerActive = (c.chargers || []).some(ch => ch.power ? Math.abs(toWatts(h, ch.power)) > 10 : false);
+    const chargerActive = Math.abs(v2cW) > 10 || anyExtraChargerActive;
     const v2gActive     = v2cW < -10; // EV discharging to home
 
     // Tempo
@@ -1001,6 +1004,9 @@ class SmoothEnergyCard extends HTMLElement {
       const targetSoc = ev.target_soc ? numState(h, ev.target_soc, null) : null;
       const isCharging = ev.charging ? strState(h, ev.charging) === 'on' : false;
       const eta  = isCharging ? calcEta(h, bat, ev.charging_power||null, ev.charging_rate||null, ev.target_soc||null, ev.battery_capacity||60) : null;
+      // Live charging power + cost estimate
+      const chargingW = ev.charging_power ? toWatts(h, ev.charging_power) : 0;
+      const chargingCostH = (isCharging && chargingW > 10 && price != null) ? (chargingW / 1000) * price : null;
       // #24 Battery health + warranty
       const battHealth = ev.battery_health ? clamp(numState(h, ev.battery_health, null), 0, 100) : null;
       let warrantyMonths = null;
@@ -1012,7 +1018,7 @@ class SmoothEnergyCard extends HTMLElement {
         const msLeft = warrantyEnd - today;
         warrantyMonths = msLeft > 0 ? Math.round(msLeft / (1000 * 60 * 60 * 24 * 30)) : 0;
       }
-      return { ...ev, bat, rng, targetSoc, isCharging, eta, battHealth, warrantyMonths };
+      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, battHealth, warrantyMonths };
     });
     // Fallback: if charger active and no EV reports charging state, mark first EV
     if (chargerActive && evData.length > 0 && !evData.some(ev => ev.isCharging) && !evData[0].charging) {
@@ -1288,6 +1294,36 @@ class SmoothEnergyCard extends HTMLElement {
         } else if (!ev.isCharging && badge) {
           badge.remove();
         }
+      } else {
+        // No image — use standalone badge
+        let soloBadge = evCard.querySelector('.charging-badge-solo');
+        if (ev.isCharging && !soloBadge) {
+          soloBadge = document.createElement('div');
+          soloBadge.className = 'charging-badge-solo';
+          soloBadge.textContent = '⚡ Charging';
+          const nameEl2 = evCard.querySelector('.ev-name');
+          if (nameEl2) nameEl2.insertAdjacentElement('afterend', soloBadge);
+          else evCard.insertBefore(soloBadge, evCard.firstChild);
+        } else if (!ev.isCharging && soloBadge) {
+          soloBadge.remove();
+        }
+      }
+
+      // Charging cost line
+      let costEl = evCard.querySelector('.ev-cost');
+      if (ev.isCharging && ev.chargingCostH != null) {
+        const costText = `~${ev.chargingCostH.toFixed(3)} €/h`;
+        if (costEl) costEl.textContent = costText;
+        else {
+          costEl = document.createElement('div');
+          costEl.className = 'ev-cost';
+          costEl.textContent = costText;
+          const etaEl2 = evCard.querySelector('.ev-eta');
+          if (etaEl2) etaEl2.insertAdjacentElement('afterend', costEl);
+          else evCard.appendChild(costEl);
+        }
+      } else if (costEl) {
+        costEl.remove();
       }
 
       // Battery ring
@@ -1970,9 +2006,12 @@ class SmoothEnergyCard extends HTMLElement {
     const targetArc = (targetOffset != null && ev.isCharging)
       ? `<circle cx="28" cy="28" r="${r}" fill="none" stroke="rgba(52,211,153,0.35)" stroke-width="6" stroke-linecap="round" stroke-dasharray="3 ${(circ-3).toFixed(2)}" stroke-dashoffset="${(targetOffset-1.5).toFixed(2)}" style="pointer-events:none"/>` : '';
     const imgEl = ev.image
-      ? `<div class="car-img-wrap"><img src="${ev.image}" alt="${ev.name}" loading="lazy" onerror="this.parentElement.style.display='none'">${ev.isCharging?`<div class="charging-badge">⚡</div>`:''}</div>` : '';
+      ? `<div class="car-img-wrap"><img src="${ev.image}" alt="${ev.name}" loading="lazy" onerror="this.parentElement.style.display='none'">${ev.isCharging?`<div class="charging-badge">⚡</div>`:''}</div>`
+      : (ev.isCharging ? `<div class="charging-badge-solo">⚡ Charging</div>` : '');
     const etaLine = (ev.isCharging && ev.eta)
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
+    const costLine = (ev.isCharging && ev.chargingCostH != null)
+      ? `<div class="ev-cost">~${ev.chargingCostH.toFixed(3)} €/h</div>` : '';
     const batTip = this._t('tip_bat', ev.name, ev.bat, ev.rng, ev.targetSoc, ev.isCharging && ev.eta ? ev.eta : null)
       + (ev.isCharging ? '\n' + this._t('charging_via') : '');
 
@@ -1990,6 +2029,7 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
         <div class="ev-range" data-tip="${this._t('tip_range', ev.rng, Math.round(ev.rng / 6))}">${ev.rng} <em>km</em></div>
         ${etaLine}
+        ${costLine}
         ${ev.battHealth != null ? `<div class="ev-health">🔋 ${Math.round(ev.battHealth)}% health</div>` : ''}
         ${ev.warrantyMonths != null ? (() => {
           const cls = ev.warrantyMonths <= 0 ? 'exp' : ev.warrantyMonths < 12 ? 'warn' : 'ok';

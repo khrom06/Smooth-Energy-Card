@@ -71,80 +71,73 @@ type: custom:smooth-energy-card
 title: Energy Dashboard
 
 # ─── Power sensors ───────────────────────────────────────────
-solar_power: sensor.shelly_channel_2_power        # Solar production (W or kW)
-grid_power: sensor.shelly_channel_1_power          # Grid (negative = exporting)
-house_power: sensor.consommation_maison_live       # Total house consumption
-v2c_power: sensor.evse_192_168_1_67_puissance_de_charge  # EV charger power
+solar_power: sensor.your_solar_power          # Solar production (W or kW)
+grid_power: sensor.your_grid_power            # Grid (negative = exporting)
+house_power: sensor.your_house_power          # Total house consumption
 
 # ─── Electricity price ───────────────────────────────────────
-kwh_price: sensor.prix_du_kwh_en_cours             # €/kWh current tariff
+kwh_price: sensor.your_kwh_price              # €/kWh current tariff
 
 # ─── Solar energy stats ──────────────────────────────────────
-solar_today: sensor.hoymiles_gateway_solarh_6402640_today_eq  # kWh produced today
-solar_forecast_today: sensor.energy_production_today          # kWh forecast today
-solar_forecast_tomorrow: sensor.energy_production_tomorrow    # kWh forecast tomorrow
-
-# ─── V2C charger ─────────────────────────────────────────────
-v2c_image: /local/images/v2ctrydan-1.png
-v2c_session_energy: sensor.energie_v2c_session     # kWh charged this session
+solar_today: sensor.your_solar_today          # kWh produced today
+solar_forecast_today: sensor.your_forecast_today       # kWh forecast today
+solar_forecast_tomorrow: sensor.your_forecast_tomorrow # kWh forecast tomorrow
 
 # ─── EDF Tempo / tariff alerts (optional) ────────────────────
-tempo_color_today: sensor.rte_tempo_couleur_du_jour        # state: "BLEU", "BLANC", "ROUGE"
-tempo_color_tomorrow: sensor.rte_tempo_couleur_du_lendemain
+tempo_color_today: sensor.your_tempo_today    # state: "BLEU", "BLANC", "ROUGE"
+tempo_color_tomorrow: sensor.your_tempo_tomorrow
 price_alert_high: 0.20         # price pill blinks red above this €/kWh
 price_alert_low: 0.05          # price pill turns green below this €/kWh
 
 # ─── Daily cost summary (optional) ───────────────────────────
-grid_energy_import: sensor.shelly_channel_1_energy          # kWh imported today
-grid_energy_export: sensor.shelly_channel_1_energy_returned # kWh exported today
-feed_in_rate: 0.1              # export revenue = export_kwh × price × 0.1
+grid_energy_import: sensor.your_grid_import   # kWh imported today (daily reset)
+grid_energy_export: sensor.your_grid_export   # kWh exported today (daily reset)
+feed_in_rate: 0.1              # export revenue = export_kwh × price × feed_in_rate
 
 # ─── Theme ───────────────────────────────────────────────────
 theme: dark                    # "dark" (default) or "light"
 
 # ─── Home Battery / ESS (optional) ───────────────────────────
-battery_power: sensor.battery_power   # W or kW — positive = charging, negative = discharging
-battery_soc: sensor.battery_soc       # % — battery state of charge (optional)
+battery_power: sensor.your_battery_power      # W or kW — positive = charging, negative = discharging
+battery_soc: sensor.your_battery_soc          # % — battery state of charge
 
 # ─── Electric vehicles (unlimited) ───────────────────────────
 evs:
-  - name: Cupra Tavascan
-    battery: sensor.cupra_tavascan_battery_level
-    range: sensor.cupra_tavascan_electric_range
-    image: /local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png
-    charging: binary_sensor.cupra_tavascan_charging_state   # optional
-    charging_power: sensor.cupra_tavascan_charging_power    # kW — for ETA calc
-    target_soc: sensor.cupra_tavascan_target_state_of_charge  # % — optional
-    battery_capacity: 77                                    # kWh — for ETA calc
+  - name: My EV
+    battery: sensor.your_ev_battery           # %
+    range: sensor.your_ev_range               # km
+    image: /local/images/my_ev.png            # optional
+    charging: binary_sensor.your_ev_charging  # optional
+    charging_power: sensor.your_ev_charging_power  # kW — for ETA calc
+    target_soc: sensor.your_ev_target_soc     # % — optional
+    battery_capacity: 77                      # kWh — for ETA calc
 
-  - name: Fiat 500e
-    battery: sensor.fiat_500e_berline_my24_hvbattery_charge
-    range: sensor.fiat_500e_berline_my24_driving_range
-    image: /local/images/Home/fiat500.jpg
-    charging: ''                                            # optional
-    charging_rate: sensor.fiat_500e_berline_my24_charging_rate  # %/h — alternative to charging_power
-    target_soc: ''                                          # optional
-    battery_capacity: 37.3                                  # kWh
+  - name: My Second EV
+    battery: sensor.your_ev2_battery          # %
+    range: sensor.your_ev2_range              # km
+    image: /local/images/my_ev2.png           # optional
+    charging_rate: sensor.your_ev2_charging_rate  # %/h — alternative to charging_power
+    battery_capacity: 40                      # kWh
 
 # ─── Individual device monitoring ────────────────────────────
 devices:
-  - name: Climatisation
-    entity: sensor.shelly2_channel_1_power
+  - name: Air Conditioning
+    entity: sensor.your_ac_power
     icon: ac
-  - name: Ballon ECS
-    entity: sensor.shelly2_channel_2_power
+  - name: Water Heater
+    entity: sensor.your_water_heater_power
     icon: water
-  - name: TV Box
-    entity: sensor.salon_tvbox_power
+  - name: TV
+    entity: sensor.your_tv_power
     icon: tv
-  - name: Lave-linge
-    entity: sensor.machinealaver_power
+  - name: Washing Machine
+    entity: sensor.your_washer_power
     icon: washer
-  - name: Informatique
-    entity: sensor.smart_switch_24022179241609510d0148e1e9ed2d80_power
+  - name: Computer
+    entity: sensor.your_computer_power
     icon: computer
-  - name: RaspPi
-    entity: sensor.tplink_ha_rpi_consommation_actuelle
+  - name: Server
+    entity: sensor.your_server_power
     icon: server
 ```
 
