@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.6';
+const VERSION = '1.9.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -820,6 +820,20 @@ const CSS = `
   @keyframes co2-pop { 0%{transform:scale(1)} 40%{transform:scale(1.18)} 80%{transform:scale(0.96)} 100%{transform:scale(1)} }
   .eco-co2.co2-pop { animation:co2-pop 0.45s ease-out; }
 
+  /* ── WOW #2: BATTERY SHIMMER ── */
+  @keyframes batt-charge-shimmer { 0%,100%{filter:drop-shadow(0 0 4px rgba(52,211,153,0.4))} 50%{filter:drop-shadow(0 0 14px rgba(52,211,153,0.9))} }
+  @keyframes batt-discharge-shimmer { 0%,100%{filter:drop-shadow(0 0 4px rgba(251,191,36,0.4))} 50%{filter:drop-shadow(0 0 14px rgba(251,191,36,0.85))} }
+  .batt-charging { animation:batt-charge-shimmer 1.4s ease-in-out infinite; }
+  .batt-discharging { animation:batt-discharge-shimmer 1.1s ease-in-out infinite; }
+
+  /* ── WOW #4: NIGHT MODE SOLAR ── */
+  @keyframes moon-pulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(148,163,184,0.3))} 50%{filter:drop-shadow(0 0 18px rgba(148,163,184,0.6))} }
+  .solar-night { animation:moon-pulse 3s ease-in-out infinite; }
+
+  /* ── WOW #3: SOLAR BURST ── */
+  @keyframes solar-burst-ring { 0%{r:44;opacity:0.7;stroke-width:2.5} 100%{r:80;opacity:0;stroke-width:0.5} }
+  .solar-burst-ring { animation:solar-burst-ring 0.7s ease-out forwards; fill:none; stroke:#fbbf24; }
+
   /* ── WOW #14: NODE DETAIL PANEL ── */
   .node-panel { background:rgba(12,18,40,0.97); border:1px solid rgba(96,165,250,0.18); border-radius:14px; padding:14px 16px; margin-top:10px; display:none; }
   .node-panel.show { display:block; animation:node-slide-up 0.22s ease-out; }
@@ -1138,6 +1152,11 @@ class SmoothEnergyCard extends HTMLElement {
       setTimeout(() => card.classList.remove('peak-flash'), 2500);
     }
     this._wasPeak = isPeak;
+    // WOW #3: solar burst on new daily peak
+    if (d.solarW > 50 && d.solarW > (this._solarPeakToday || 0)) {
+      this._solarPeakToday = d.solarW;
+      this._solarBurst(shadow);
+    }
 
     // WOW: header score badge
     const headerScore = card.querySelector('[data-uid="header-score"]');
@@ -1799,6 +1818,11 @@ class SmoothEnergyCard extends HTMLElement {
           <stop offset="0%" stop-color="#2d2515" stop-opacity="0.8"/>
           <stop offset="100%" stop-color="#0c1020"/>
         </radialGradient>
+        <radialGradient id="orb-sol-night" cx="34%" cy="28%" r="66%">
+          <stop offset="0%" stop-color="#c7d2fe" stop-opacity="0.7"/>
+          <stop offset="35%" stop-color="#6366f1"/>
+          <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.95"/>
+        </radialGradient>
         <radialGradient id="orb-house" cx="34%" cy="28%" r="66%">
           <stop offset="0%" stop-color="#e0f2fe" stop-opacity="0.9"/>
           <stop offset="30%" stop-color="#60a5fa"/>
@@ -1858,9 +1882,9 @@ class SmoothEnergyCard extends HTMLElement {
         : (hasV2c && vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
       }
       <g id="particles"></g>
-      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
-      <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
-      <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):'☀️'}</text>
+      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':sun===null?'orb-sol-night':'orb-sol-off'})" stroke="${sOn?'#fbbf24':sun===null?'#4338ca':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" class="${sun===null?'solar-night':''}" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
+      <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':sun===null?'0.15':'0.08'}"/>
+      <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':sun===null?'#c7d2fe':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):sun===null?'🌙':'☀️'}</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+22}" class="n-name">${this._t('solar')}</text>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
@@ -1892,7 +1916,7 @@ class SmoothEnergyCard extends HTMLElement {
         ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
         ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
-        <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5"/>
+        <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5" class="${d.battCharging?'batt-charging':d.battDischarging?'batt-discharging':''}"/>
         <circle cx="${bP.x-Rb*0.28}" cy="${bP.y-Rb*0.28}" r="${Rb*0.2}" fill="white" opacity="${(d.battCharging||d.battDischarging)?'0.28':'0.07'}"/>
         <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
         ${d.battSoc != null
@@ -1991,6 +2015,24 @@ class SmoothEnergyCard extends HTMLElement {
       ${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div>
       <div class="dev-expand">${sparkHtml}</div>
     </div>`;
+  }
+
+  _solarBurst(shadow) {
+    const sP = { x: 58, y: 62 };
+    const svg = shadow.querySelector('.flow-svg');
+    if (!svg) return;
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ring.setAttribute('cx', sP.x);
+        ring.setAttribute('cy', sP.y);
+        ring.setAttribute('r', 44);
+        ring.setAttribute('class', 'solar-burst-ring');
+        ring.style.animationDelay = `${i * 0.18}s`;
+        svg.appendChild(ring);
+        setTimeout(() => ring.remove(), 900 + i * 180);
+      }, i * 60);
+    }
   }
 
   _drawChargingCable(shadow, d) {
@@ -2125,13 +2167,20 @@ class SmoothEnergyCard extends HTMLElement {
       { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
       ...devFlows,
     ].filter(f => f.active).forEach(flow => {
-      const frac = clamp(flow.w / totalW, 0.04, 1);
+      const fracRel = clamp(flow.w / totalW, 0.04, 1);
+      const fracAbs = clamp(flow.w / 6000, 0.02, 1); // absolute: 6kW = full
+      const frac = clamp((fracRel + fracAbs) / 2, 0.04, 1);
       // High power = fast frequent shots, low power = slow infrequent shots
-      const ms = Math.round(900 - frac * 750);
+      const ms = Math.round(900 - frac * 770);
+      // Very high flows (>2kW) spawn a second simultaneous particle
+      const dual = flow.w > 2000;
       this._particleTimers.push(setInterval(() => {
         const path = shadow.getElementById(flow.id);
         const cont = shadow.getElementById('particles');
-        if (path && cont) this._spawnLaser(path, cont, flow.col, frac);
+        if (path && cont) {
+          this._spawnLaser(path, cont, flow.col, frac);
+          if (dual) setTimeout(() => { if (path && cont) this._spawnLaser(path, cont, flow.col, frac * 0.7); }, ms * 0.45);
+        }
       }, ms));
     });
   }
