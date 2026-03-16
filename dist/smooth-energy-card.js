@@ -624,11 +624,15 @@ const CSS = `
   .device.alert { animation:dev-alert-pulse 1.6s ease-in-out infinite; }
   .dev-rank { position:absolute; top:4px; left:5px; font-size:0.55em; font-weight:800; color:#2a3558; }
 
-  /* ── SHARE BUTTON ── */
-  .share-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:pointer; font-size:0.78em; color:#60a5fa; transition:background 0.2s,border-color 0.2s; flex-shrink:0; }
+  /* ── SHARE BUTTON & STATS POPUP ── */
+  .share-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:default; font-size:0.78em; color:#60a5fa; transition:background 0.2s,border-color 0.2s; flex-shrink:0; position:relative; }
   .share-btn:hover { background:rgba(96,165,250,0.16); border-color:rgba(96,165,250,0.4); }
-  .share-toast { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(52,211,153,0.95); color:#052e16; border-radius:8px; padding:6px 16px; font-size:0.78em; font-weight:700; pointer-events:none; opacity:0; transition:opacity 0.3s; z-index:20; white-space:nowrap; }
-  .share-toast.show { opacity:1; }
+  .stats-popup { position:absolute; top:calc(100% + 8px); right:0; min-width:230px; background:rgba(15,23,42,0.97); border:1px solid rgba(96,165,250,0.25); border-radius:12px; padding:12px 14px; box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:100; opacity:0; pointer-events:none; transition:opacity 0.18s,transform 0.18s; transform:translateY(-4px); }
+  .stats-popup.show { opacity:1; pointer-events:auto; transform:translateY(0); }
+  .stats-popup pre { margin:0; font-family:monospace; font-size:0.72em; color:#cbd5e1; line-height:1.6; white-space:pre; }
+  .stats-popup-copy { margin-top:9px; width:100%; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.25); border-radius:6px; color:#60a5fa; font-size:0.72em; padding:4px 0; cursor:pointer; transition:background 0.15s; }
+  .stats-popup-copy:hover { background:rgba(96,165,250,0.22); }
+  .stats-popup-copy.ok { color:#34d399; border-color:rgba(52,211,153,0.3); }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -1172,7 +1176,6 @@ class SmoothEnergyCard extends HTMLElement {
     const hasSurplus = d.surplusW > 50;
     return `
       <div class="card-hud"></div>
-      <div class="share-toast" data-uid="share-toast"></div>
       <div class="header">
         <div class="title-block">
           <div class="title">${c.title || 'Energy'}</div>
@@ -1180,7 +1183,12 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
-          <button class="share-btn" data-action="share" title="Copy stats to clipboard">📋</button>
+          <div class="share-btn" data-action="share" title="Energy stats">📋
+            <div class="stats-popup" data-uid="stats-popup">
+              <pre data-uid="stats-content"></pre>
+              <button class="stats-popup-copy" data-uid="stats-copy">Copy to clipboard</button>
+            </div>
+          </div>
         </div>
       </div>
       ${this._buildTempoBanner(d)}
@@ -1529,12 +1537,11 @@ class SmoothEnergyCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
   }
 
-  _copyStats(d) {
-    const c = this._config;
+  _statsText(d) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const dateStr = now.toLocaleDateString('fr-FR');
-    const lines = [
+    return [
       `⚡ Smooth Energy — ${dateStr} ${timeStr}`,
       ``,
       `☀️  Solar:   ${fmtW(d.solarW)}`,
@@ -1555,33 +1562,44 @@ class SmoothEnergyCard extends HTMLElement {
       d.price != null       ? `💶  Price now:     ${d.price.toFixed(3)} €/kWh` : '',
       d.surplusW > 50       ? `✅  Solar surplus: ${fmtW(d.surplusW)} available` : '',
     ].filter(s => s !== '').join('\n');
-
-    navigator.clipboard.writeText(lines).then(() => {
-      const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
-      if (toast) {
-        toast.textContent = this._t('copied');
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2200);
-      }
-    }).catch(() => {
-      const toast = this.shadowRoot?.querySelector('[data-uid="share-toast"]');
-      if (toast) {
-        toast.textContent = this._t('clip_err');
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2200);
-      }
-    });
   }
 
   _setupTapHandlers(shadow) {
     const c = this._config;
-    // Share button
+    // Stats popup (mouseover)
     const shareBtn = shadow.querySelector('[data-action="share"]');
-    if (shareBtn) shareBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const d = this._data();
-      if (d) this._copyStats(d);
-    });
+    if (shareBtn) {
+      const popup = shareBtn.querySelector('[data-uid="stats-popup"]');
+      const content = shareBtn.querySelector('[data-uid="stats-content"]');
+      const copyBtn = shareBtn.querySelector('[data-uid="stats-copy"]');
+      let hideTimer = null;
+      const showPopup = () => {
+        clearTimeout(hideTimer);
+        const d = this._data();
+        if (d && content) content.textContent = this._statsText(d);
+        popup?.classList.add('show');
+      };
+      const hidePopup = () => {
+        hideTimer = setTimeout(() => popup?.classList.remove('show'), 120);
+      };
+      shareBtn.addEventListener('mouseenter', showPopup);
+      shareBtn.addEventListener('mouseleave', hidePopup);
+      popup?.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      popup?.addEventListener('mouseleave', hidePopup);
+      if (copyBtn) copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const d = this._data();
+        if (!d) return;
+        navigator.clipboard.writeText(this._statsText(d)).then(() => {
+          copyBtn.textContent = this._t('copied');
+          copyBtn.classList.add('ok');
+          setTimeout(() => { copyBtn.textContent = 'Copy to clipboard'; copyBtn.classList.remove('ok'); }, 2000);
+        }).catch(() => {
+          copyBtn.textContent = this._t('clip_err');
+          setTimeout(() => { copyBtn.textContent = 'Copy to clipboard'; }, 2000);
+        });
+      });
+    }
     // Charger card
     const chargerCard = shadow.querySelector('.ev-charger');
     if (chargerCard && c.v2c_power) chargerCard.addEventListener('click', () => this._moreInfo(c.v2c_power));
