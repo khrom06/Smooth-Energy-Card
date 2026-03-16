@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.2
+ * Smooth Energy Card v1.7.3
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.6.0
  */
 
-const VERSION = '1.7.2';
+const VERSION = '1.7.3';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -512,6 +512,12 @@ const CSS = `
   .surplus { background:linear-gradient(90deg,rgba(52,211,153,0.08),rgba(16,185,129,0.04)); border:1px solid rgba(52,211,153,0.2); border-radius:10px; padding:7px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.78em; }
   .surplus .s-lbl{color:#34d399;font-weight:600;} .surplus .s-val{color:#34d399;font-weight:700;font-size:1.05em;}
 
+  /* ── STATS TABS ── */
+  .stats-tabs { display:flex; gap:4px; margin-bottom:8px; }
+  .stats-tab { flex:1; padding:5px 8px; border-radius:8px; border:1px solid rgba(96,165,250,0.15); background:rgba(96,165,250,0.04); font-size:0.68em; font-weight:700; color:#3d5280; cursor:pointer; text-align:center; transition:background 0.15s,color 0.15s,border-color 0.15s; letter-spacing:0.3px; }
+  .stats-tab.active { background:rgba(96,165,250,0.14); border-color:rgba(96,165,250,0.35); color:#60a5fa; }
+  .stats-tab-panel { display:none; }
+  .stats-tab-panel.active { display:block; }
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:14px; }
   .stat { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:9px 5px; text-align:center; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; }
   .stat .sv{font-size:0.9em;font-weight:700;line-height:1;margin-bottom:3px;} .stat .sl{font-size:0.58em;font-weight:600;color:#3d5280;text-transform:uppercase;letter-spacing:0.5px;}
@@ -566,6 +572,11 @@ const CSS = `
   .device{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   .device.on{border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.04);}
   .device.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:1.5px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent);}
+  .device { cursor:pointer; }
+  .dev-expand { display:none; width:100%; margin-top:6px; border-top:1px solid rgba(96,165,250,0.1); padding-top:5px; }
+  .device.expanded .dev-expand { display:block; }
+  .dev-expand-spark { display:flex; justify-content:center; }
+  .dev-expand-info { font-size:0.6em; color:#3d5280; text-align:center; margin-top:2px; }
   .dev-icon{width:20px;height:20px;flex-shrink:0;transition:color 0.3s;}
   .dev-icon.off{color:#1e2a4a;} .dev-icon.on{color:#fbbf24;}
   .dev-name{font-size:0.58em;font-weight:600;color:#3d5280;text-align:center;line-height:1.2;}
@@ -1005,9 +1016,11 @@ class SmoothEnergyCard extends HTMLElement {
     const statsEl = card.querySelector('[data-uid="stats"]');
     if (statsEl) statsEl.innerHTML = this._buildStats(d);
 
-    // Daily summary
+    // Daily summary (hidden anchor + today tab panel)
     const dailySummaryEl = card.querySelector('[data-uid="daily-summary"]');
     if (dailySummaryEl) dailySummaryEl.innerHTML = this._buildDailySummary(d);
+    const dailySummaryTab = card.querySelector('[data-uid="daily-summary-tab"]');
+    if (dailySummaryTab) dailySummaryTab.innerHTML = this._buildDailySummary(d);
 
     // Price alert classes
     const pricePill = card.querySelector('.price-pill');
@@ -1179,7 +1192,7 @@ class SmoothEnergyCard extends HTMLElement {
       <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">${this._t('solar_today')}</div><div class="spark" data-uid="spark-solar"></div></div>
       <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">${this._t('forecast')}</div></div>
       <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?this._t('exporting'):this._t('importing')}</div><div class="spark" data-uid="spark-grid"></div></div>
-      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?this._t('earning'):costStr}</div><div class="sl">${this._t('est_cost')}</div></div>`;
+      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?this._t('earning'):costStr}</div><div class="sl">${this._t('est_cost')}</div><div class="spark" data-uid="spark-house"></div></div>`;
   }
 
   _buildForecast(d) {
@@ -1414,8 +1427,17 @@ class SmoothEnergyCard extends HTMLElement {
       <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
       <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
-      <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
-      <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
+      <div class="stats-tabs" data-uid="stats-tabs">
+        <div class="stats-tab active" data-tab="live">⚡ Live</div>
+        <div class="stats-tab" data-tab="today">📅 Today</div>
+      </div>
+      <div class="stats-tab-panel active" data-panel="live">
+        <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
+      </div>
+      <div class="stats-tab-panel" data-panel="today">
+        <div data-uid="daily-summary-tab">${this._buildDailySummary(d)}</div>
+      </div>
+      <div data-uid="daily-summary" style="display:none"></div>
       <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
       <div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>
@@ -1634,7 +1656,15 @@ class SmoothEnergyCard extends HTMLElement {
     const rankHtml = rank != null ? `<span class="dev-rank">#${rank+1}</span>` : '';
     const alertTip = isAlert ? `⚠️ Above ${dev.alert_above}W threshold` : '';
     const tip = [dev.name, `${Math.round(dev.w)} W`, alertTip].filter(Boolean).join('\n');
-    return `<div class="device${on?' on':''}${isAlert?' alert':''}" data-tip="${tip}">${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div></div>`;
+    const isExpanded = this._expandedDevEntity === dev.entity;
+    const sparkData = isExpanded && this._sparkData?.[dev.entity];
+    const sparkHtml = sparkData
+      ? `<div class="dev-expand-spark">${this._buildSparkSvg(sparkData, on?'#fbbf24':'#3d5280', 80, 22)}</div><div class="dev-expand-info">6h · peak ${fmtW(Math.max(...sparkData))}</div>`
+      : `<div class="dev-expand-info">${dev.entity || ''}</div>`;
+    return `<div class="device${on?' on':''}${isAlert?' alert':''}${isExpanded?' expanded':''}" data-dev-entity="${dev.entity||''}" data-tip="${tip}">
+      ${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div>
+      <div class="dev-expand">${sparkHtml}</div>
+    </div>`;
   }
 
   _drawChargingCable(shadow, d) {
@@ -1832,17 +1862,57 @@ class SmoothEnergyCard extends HTMLElement {
       const entity = ev && (ev.battery || ev.range);
       if (entity) card.addEventListener('click', () => this._moreInfo(entity));
     });
-    // Device tiles
-    shadow.querySelectorAll('.device').forEach((tile, i) => {
-      const dev = (c.devices || [])[i];
-      if (dev?.entity) tile.addEventListener('click', () => this._moreInfo(dev.entity));
+    // Stats tabs
+    shadow.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const target = tab.getAttribute('data-tab');
+        shadow.querySelectorAll('[data-tab]').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === target));
+        shadow.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === target));
+      });
+    });
+
+    // Device tiles — short click = expand/collapse, long press / hold = more-info
+    shadow.querySelectorAll('.device').forEach((tile) => {
+      const entity = tile.getAttribute('data-dev-entity');
+      if (!entity) return;
+      let pressTimer = null;
+      tile.addEventListener('pointerdown', () => {
+        pressTimer = setTimeout(() => { pressTimer = null; this._moreInfo(entity); }, 600);
+      });
+      tile.addEventListener('pointerup', () => clearTimeout(pressTimer));
+      tile.addEventListener('pointerleave', () => clearTimeout(pressTimer));
+      tile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const prev = this._expandedDevEntity;
+        this._expandedDevEntity = (prev === entity) ? null : entity;
+        // Re-render devices grid to reflect new expanded state
+        const devGrid = shadow.querySelector('[data-uid="devices-grid"]');
+        const d = this._data();
+        if (devGrid && d) {
+          devGrid.innerHTML = d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('');
+          // Re-attach handlers after re-render
+          requestAnimationFrame(() => {
+            devGrid.querySelectorAll('.device').forEach(t => {
+              const ent = t.getAttribute('data-dev-entity');
+              if (!ent) return;
+              t.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                this._expandedDevEntity = (this._expandedDevEntity === ent) ? null : ent;
+                const dd = this._data();
+                if (dd) devGrid.innerHTML = dd.devices.map((dv, i) => this._buildDevice(dv, this._config.devices_sort ? i : null)).join('');
+              });
+            });
+          });
+        }
+      });
     });
   }
 
   async _fetchSparklines() {
     const h = this._hass, c = this._config;
     if (!h || !c) return;
-    const entities = [c.solar_power, c.grid_power, c.house_power].filter(Boolean);
+    const devEntities = (c.devices || []).map(d => d.entity).filter(Boolean);
+    const entities = [...new Set([c.solar_power, c.grid_power, c.house_power, ...devEntities].filter(Boolean))];
     if (!entities.length) return;
     const now = new Date();
     const start = new Date(now - 6 * 3600 * 1000);
@@ -1891,9 +1961,8 @@ class SmoothEnergyCard extends HTMLElement {
     });
   }
 
-  _buildSparkSvg(pts, color) {
+  _buildSparkSvg(pts, color, W = 60, H = 18) {
     if (!pts || pts.length < 2) return '';
-    const W = 60, H = 18;
     const min = Math.min(...pts), max = Math.max(...pts);
     const range = max - min || 1;
     const coords = pts.map((v, i) => {
