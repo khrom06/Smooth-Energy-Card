@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -11,29 +11,37 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Animated energy flow** — Real-time SVG with flowing particles showing solar → house → grid direction
 - **Solar production** — Current power, today's yield, and solar forecast
 - **Grid monitoring** — Bidirectional: tracks import and export (selling back to grid)
-- **EV Charger (V2C)** — Live charging power display
-- **Electric vehicles** — Battery % ring gauge + range for two EVs (Cupra Tavascan & Fiat 500e by default)
-- **Smart plug devices** — Individual device consumption tiles
-- **Electricity cost** — Live cost estimate per hour using your current tariff sensor
-- **Solar surplus** — Highlights available surplus power
+- **EV Charger (V2C / Wallbox)** — Live charging power, session cost (solar vs grid), animated cable
+- **Multiple chargers** — `chargers[]` array supports any number of EVSE chargers
+- **Electric vehicles** — Battery % ring gauge, range, ETA to target SoC, departure-time check
+- **Smart plug devices** — Individual device consumption tiles with anomaly detection
+- **Electricity cost** — Live cost estimate per hour, daily cost/savings summary, monthly budget tracker
+- **Solar surplus** — Highlights available surplus power with green banner
 - **Solar forecast** — Shows predicted production for today & tomorrow
 - **EDF Tempo banner** — Color-coded daily tariff indicator (BLEU/BLANC/ROUGE)
-- **Daily cost/savings summary** — Today's grid cost, solar savings, and export revenue
 - **Price alerts** — Price pill blinks red above a high threshold, turns green below a low threshold
-- **Light theme** — Clean light mode via `theme: light` config option
-- **Sparkline charts** — Mini 6-hour history charts in Solar Today and Grid stat tiles
-- **Tap to more-info** — Tap any EV card, charger, or device tile to open the HA entity popup
-- **Home battery node** — Battery/ESS shown in energy flow with charge/discharge direction and SoC%
-- **Device alerts & ranking** — Per-device alert threshold (border pulses red), optional sort by consumption
-- **Copy to clipboard** — One-click copy of current energy state as formatted text (EV status, costs, solar, etc.)
-- **3D orb nodes** — Energy flow nodes rendered as glowing 3D spheres with specular highlights
-- **Glassmorphism UI** — Frosted glass blur effect on all stat and EV tiles
-- **HUD texture** — Animated grid background gives the card a real control-panel feel
+- **Price forecast chart** — Next-12h tariff bars with cheapest 2-hour charge window chip
 - **Self-sufficiency gauge** — Circular arc gauge showing % of consumption covered by solar
-- **Smart charging recommendation** — Contextual advice based on Tempo color, solar surplus, and pricing
-- **Sun arc** — Animated sun position arc in the energy flow diagram, tracks daylight hours
-- **V2G support** — Detects negative charger power and shows reverse energy flow (EV→home)
-- **Multilingual** — Full UI in English, French, Spanish, Chinese (Simplified) and Japanese. Auto-detects HA language, or set manually via `language` config key
+- **Battery/ESS** — Animated water-fill SoC + particles, charge/discharge arrows
+- **V2G support** — Reverse particles + "Discharging to home" when EV exports to house
+- **Grid outage banner** — Islanding detection via `grid_connected` binary_sensor
+- **Smart charging recommendation** — Contextual advice: Tempo color, solar surplus, price level
+- **EV optimizer & device scheduler** — Suggests best time to charge/run appliances based on tariff
+- **Power chart** — Stacked area chart of live solar/grid/house power (180-sample buffer)
+- **CO₂ savings banner** — Grams / kg of CO₂ avoided today, yearly estimate from savings log
+- **Cumulative savings counter** — Total €€ saved via solar since card was installed
+- **Yesterday comparison chips** — +/−% vs previous day for solar production & self-sufficiency
+- **Personal records hall of fame** — All-time best solar day, sufficiency, export
+- **In-card event log** — Timestamped log of export starts, solar peaks, grid outages (last 20)
+- **Quick-action buttons** — Configurable pill buttons calling any HA service (scenes, switches, etc.)
+- **Hide sections / Compact mode** — Hide any section by name, or `compact: true` for mobile/sidebar
+- **WOW effects** — Aurora glow, grid shockwave, solar burst, export fireworks, thunderstorm SVG, battery water fill, time-of-day sky gradient, gossip idle lines, EV lightning storm, house heartbeat
+- **Weather integration** — Solar orb shows current conditions; weather popup with hourly forecast
+- **Fullscreen mode** — Full-screen toggle button in the header
+- **Sparkline charts** — Mini 6-hour history charts in Solar Today and Grid stat tiles
+- **Tap to more-info** — Tap any entity tile to open the HA entity popup
+- **Light theme** — Clean light mode via `theme: light`
+- **Multilingual** — English, French, Spanish, Chinese (Simplified), Japanese. Auto-detects HA language.
 
 ## Preview
 
@@ -74,75 +82,102 @@ title: Energy Dashboard
 solar_power: sensor.your_solar_power          # Solar production (W or kW)
 grid_power: sensor.your_grid_power            # Grid (negative = exporting)
 house_power: sensor.your_house_power          # Total house consumption
+v2c_power: sensor.your_v2c_power              # EV charger power (optional)
 
 # ─── Electricity price ───────────────────────────────────────
 kwh_price: sensor.your_kwh_price              # €/kWh current tariff
+price_alert_high: 0.20                        # blink red above this
+price_alert_low: 0.05                         # turn green below this
+tariff_forecast: sensor.your_tariff_forecast  # next-12h price forecast (optional)
 
 # ─── Solar energy stats ──────────────────────────────────────
 solar_today: sensor.your_solar_today          # kWh produced today
-solar_forecast_today: sensor.your_forecast_today       # kWh forecast today
-solar_forecast_tomorrow: sensor.your_forecast_tomorrow # kWh forecast tomorrow
+solar_forecast_today: sensor.your_forecast_today
+solar_forecast_tomorrow: sensor.your_forecast_tomorrow
+
+# ─── Sun arc (optional, defaults to sun.sun entity or 06:00–21:00) ───
+sunrise_hour: 6.5      # override sunrise hour if sun.sun not available
+sunset_hour: 20.5      # override sunset hour
 
 # ─── EDF Tempo / tariff alerts (optional) ────────────────────
 tempo_color_today: sensor.your_tempo_today    # state: "BLEU", "BLANC", "ROUGE"
 tempo_color_tomorrow: sensor.your_tempo_tomorrow
-price_alert_high: 0.20         # price pill blinks red above this €/kWh
-price_alert_low: 0.05          # price pill turns green below this €/kWh
 
 # ─── Daily cost summary (optional) ───────────────────────────
-grid_energy_import: sensor.your_grid_import   # kWh imported today (daily reset)
-grid_energy_export: sensor.your_grid_export   # kWh exported today (daily reset)
+# IMPORTANT: these MUST be daily-reset sensors (utility_meter helpers), NOT cumulative totals
+grid_energy_import: sensor.your_grid_import   # kWh imported today
+grid_energy_export: sensor.your_grid_export   # kWh exported today
 feed_in_rate: 0.1              # export revenue = export_kwh × price × feed_in_rate
-monthly_budget: 150            # € — shows monthly burn-rate bar with projected cost
+monthly_budget: 150            # € — monthly cost cap, shows burn-rate bar (0 = disabled)
 
-# ─── Grid connectivity (optional, for islanding detection) ────
-grid_connected: binary_sensor.your_grid_status  # off = grid offline → islanding banner
-
-# ─── Theme ───────────────────────────────────────────────────
-theme: dark                    # "dark" (default) or "light"
+# ─── Grid connectivity (optional) ────────────────────────────
+grid_connected: binary_sensor.your_grid_status  # off = grid outage banner shown
+grid_demand_threshold: 3000    # W — alert threshold for peak demand (default: 3000)
 
 # ─── Home Battery / ESS (optional) ───────────────────────────
-battery_power: sensor.your_battery_power      # W or kW — positive = charging, negative = discharging
+battery_power: sensor.your_battery_power      # W or kW — positive=charging, negative=discharging
 battery_soc: sensor.your_battery_soc          # % — battery state of charge
+battery_rated_capacity: 10                    # kWh — enables battery health indicator
+
+# ─── CO₂ intensity (optional) ────────────────────────────────
+co2_intensity: sensor.your_co2_intensity      # g/kWh — defaults to 400 g/kWh if omitted
+
+# ─── Weather (optional) ──────────────────────────────────────
+weather_entity: weather.your_location         # weather condition icon on solar orb
+weather_forecast_entity: weather.your_location  # for hourly forecast popup
+
+# ─── EV Charger (V2C / Wallbox) ──────────────────────────────
+v2c_image: /local/images/v2ctrydan-1.png
+v2c_session_energy: sensor.v2c_session_energy
+
+# ─── Multiple chargers (alternative to v2c_power) ────────────
+chargers:
+  - name: Wallbox 1
+    power: sensor.wallbox_power               # W or kW
+    image: /local/images/wallbox.png
+    session_energy: sensor.wallbox_session
 
 # ─── Electric vehicles (unlimited) ───────────────────────────
 evs:
   - name: My EV
     battery: sensor.your_ev_battery           # %
     range: sensor.your_ev_range               # km
-    image: /local/images/my_ev.png            # optional
+    image: /local/images/my_ev.png
     charging: binary_sensor.your_ev_charging  # optional
     charging_power: sensor.your_ev_charging_power  # kW — for ETA calc
-    target_soc: sensor.your_ev_target_soc     # % — optional
-    battery_capacity: 77                      # kWh — for ETA calc
-
-  - name: My Second EV
-    battery: sensor.your_ev2_battery          # %
-    range: sensor.your_ev2_range              # km
-    image: /local/images/my_ev2.png           # optional
-    charging_rate: sensor.your_ev2_charging_rate  # %/h — alternative to charging_power
-    battery_capacity: 40                      # kWh
+    target_soc: sensor.your_ev_target_soc     # % — arc on gauge
+    battery_capacity: 77                      # kWh
+    departure_time: input_datetime.ev_departure  # HA entity with state "HH:MM" or "YYYY-MM-DD HH:MM:SS"
 
 # ─── Individual device monitoring ────────────────────────────
+devices_sort: true             # sort by live consumption (default: false)
 devices:
   - name: Air Conditioning
     entity: sensor.your_ac_power
     icon: ac
-  - name: Water Heater
-    entity: sensor.your_water_heater_power
-    icon: water
-  - name: TV
-    entity: sensor.your_tv_power
-    icon: tv
-  - name: Washing Machine
-    entity: sensor.your_washer_power
-    icon: washer
-  - name: Computer
-    entity: sensor.your_computer_power
-    icon: computer
-  - name: Server
-    entity: sensor.your_server_power
-    icon: server
+    alert_above: 2000          # border pulses red above this wattage (optional)
+
+# ─── Quick-action buttons ─────────────────────────────────────
+quick_actions:
+  - label: "EV Mode"
+    icon: "⚡"
+    service: scene.turn_on
+    entity: scene.ev_charging_mode
+  - label: "AC Off"
+    icon: "❄️"
+    service: switch.turn_off
+    entity: switch.air_conditioning
+
+# ─── Layout & display ────────────────────────────────────────
+theme: dark                    # "dark" (default) or "light"
+language: auto                 # "auto" | "en" | "fr" | "es" | "zh" | "ja"
+compact: false                 # true = hide non-essential sections (ideal for mobile/sidebar)
+hide:                          # hide individual sections by name (all shown by default)
+  - forecast
+  - eco_badges
+  # Available: ev, devices, forecast, gauge, surplus, tempo, reco, budget,
+  #            power_chart, price_chart, eco_badges, ev_optimizer, dev_scheduler,
+  #            grid_alerts, savings, yday_chips, records, event_log, co2
 ```
 
 > **Note:** The old flat `ev1_*` / `ev2_*` keys are still accepted and auto-migrated to the `evs[]` format on load.
@@ -151,33 +186,68 @@ devices:
 
 ### Top-level keys
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `title` | string | Card title (default: `Energy Dashboard`) |
-| `solar_power` | entity | Solar production sensor (W or kW) |
-| `grid_power` | entity | Grid power sensor — **negative value = exporting** |
-| `house_power` | entity | Total house consumption (W or kW) |
-| `v2c_power` | entity | EV charger power (W or kW) |
-| `kwh_price` | entity | Current electricity price (€/kWh) |
-| `solar_today` | entity | Energy produced today (kWh) |
-| `solar_forecast_today` | entity | Predicted production today (kWh) |
-| `solar_forecast_tomorrow` | entity | Predicted production tomorrow (kWh) |
-| `v2c_image` | string | Image URL for EV charger (optional) |
-| `v2c_session_energy` | entity | Energy charged this session (kWh, optional) |
-| `tempo_color_today` | entity | EDF Tempo color today — state: `BLUE`/`WHITE`/`RED` or French equivalents (optional) |
-| `tempo_color_tomorrow` | entity | EDF Tempo color tomorrow (optional) |
-| `grid_energy_import` | entity | Grid energy imported today (kWh) — for daily cost summary |
-| `grid_energy_export` | entity | Grid energy exported today (kWh) — for daily summary |
-| `feed_in_rate` | number | Feed-in rate as fraction of import price (e.g. `0.1` = 10%). Set `0` to hide revenue tile. |
-| `price_alert_high` | number | Price pill blinks red when price ≥ this value (€/kWh, optional) |
-| `price_alert_low` | number | Price pill turns green when price ≤ this value (€/kWh, optional) |
-| `theme` | string | `dark` (default) or `light` |
-| `battery_power` | entity | Battery/ESS power sensor (W or kW) — **positive = charging, negative = discharging** |
-| `battery_soc` | entity | Battery state of charge sensor (%) — optional |
-| `devices_sort` | boolean | Sort device tiles by live consumption descending (default: `false`) |
-| `language` | string | `auto` (default), `en`, `fr`, `es`, `zh`, `ja` |
-| `evs` | list | List of electric vehicles (see below) |
-| `devices` | list | List of device monitors (see below) |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `title` | string | `Energy Dashboard` | Card title |
+| `solar_power` | entity | — | Solar production sensor (W or kW) |
+| `grid_power` | entity | — | Grid power — **negative = exporting** |
+| `house_power` | entity | — | Total house consumption (W or kW) |
+| `v2c_power` | entity | — | EV charger power (W or kW) |
+| `kwh_price` | entity | — | Current electricity price (€/kWh) |
+| `solar_today` | entity | — | Energy produced today (kWh) |
+| `solar_forecast_today` | entity | — | Predicted solar production today (kWh) |
+| `solar_forecast_tomorrow` | entity | — | Predicted solar production tomorrow (kWh) |
+| `v2c_image` | string | — | Image URL for V2C charger |
+| `v2c_session_energy` | entity | — | Charged this session (kWh) |
+| `tempo_color_today` | entity | — | EDF Tempo color — state: `BLEU`/`BLANC`/`ROUGE` |
+| `tempo_color_tomorrow` | entity | — | EDF Tempo color tomorrow |
+| `grid_energy_import` | entity | — | Grid imported today (kWh) — **must be a daily-reset sensor** |
+| `grid_energy_export` | entity | — | Grid exported today (kWh) — **must be a daily-reset sensor** |
+| `feed_in_rate` | number | `0` | Feed-in ratio (e.g. `0.1` = 10% of import price) |
+| `monthly_budget` | number | `0` | Monthly € cap — shows burn-rate bar (`0` = disabled) |
+| `grid_connected` | entity | — | Binary sensor: `off` = grid offline → islanding banner |
+| `grid_demand_threshold` | number | `3000` | W — peak demand alert threshold |
+| `price_alert_high` | number | — | Price pill blinks red above this (€/kWh) |
+| `price_alert_low` | number | — | Price pill turns green below this (€/kWh) |
+| `tariff_forecast` | entity | — | Sensor with tariff forecast data (`raw_today`/`prices` attribute) |
+| `battery_power` | entity | — | Battery/ESS power — **positive = charging, negative = discharging** |
+| `battery_soc` | entity | — | Battery state of charge (%) |
+| `battery_rated_capacity` | number | `0` | Battery kWh capacity — enables health indicator |
+| `co2_intensity` | entity | — | Grid CO₂ intensity (g/kWh); defaults to 400 g/kWh |
+| `weather_entity` | entity | — | Weather entity for condition icon on solar orb |
+| `weather_forecast_entity` | entity | — | Weather entity for hourly forecast popup |
+| `sunrise_hour` | number | `6` | Override sunrise hour if `sun.sun` is unavailable |
+| `sunset_hour` | number | `21` | Override sunset hour if `sun.sun` is unavailable |
+| `theme` | string | `dark` | `dark` or `light` |
+| `language` | string | `auto` | `auto`, `en`, `fr`, `es`, `zh`, `ja` |
+| `compact` | boolean | `false` | Auto-hide non-essential sections (devices, forecast, charts) |
+| `hide` | list | `[]` | Hide individual sections by ID (see list in example above) |
+| `quick_actions` | list | `[]` | Configurable action pill buttons (see below) |
+| `devices_sort` | boolean | `false` | Sort device tiles by live consumption |
+| `chargers` | list | `[]` | Additional EV chargers (see below) |
+| `evs` | list | `[]` | Electric vehicles (see below) |
+| `devices` | list | `[]` | Device monitors (see below) |
+
+### Quick actions (`quick_actions[]`)
+
+```yaml
+quick_actions:
+  - label: "Night Mode"    # button label
+    icon: "🌙"             # emoji icon
+    service: scene.turn_on # HA service: domain.service
+    entity: scene.night    # entity_id to pass as service target
+    data:                  # optional extra service data
+      transition: 2
+```
+
+### Charger entry (`chargers[]`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name |
+| `power` | entity | Power sensor (W or kW) |
+| `image` | string | Image URL (optional) |
+| `session_energy` | entity | Session energy sensor (kWh, optional) |
 
 ### EV entry (`evs[]`)
 
@@ -187,24 +257,22 @@ devices:
 | `battery` | entity | Battery level (%) |
 | `range` | entity | Estimated range (km) |
 | `image` | string | Image URL (optional) |
-| `charging` | entity | Charging state sensor — `binary_sensor.*` (optional) |
-| `charging_power` | entity | Charging power sensor (kW) — used for ETA calculation |
-| `charging_rate` | entity | Charging rate sensor (%/h) — alternative to `charging_power` |
-| `target_soc` | entity | Target state of charge sensor (%) — shows arc on gauge (optional) |
-| `battery_capacity` | number | Battery capacity in kWh — required for ETA when using `charging_power` |
-| `departure_time` | entity | Time/datetime sensor whose state contains `"HH:MM"` — card shows ✓ 07:30 (green) or ⚠️ 07:30 (red pulsing) depending on whether charge ETA fits before the deadline |
+| `charging` | entity | Binary sensor — `on` when charging (optional) |
+| `charging_power` | entity | Charging power (kW) — for ETA |
+| `charging_rate` | entity | Charging rate (%/h) — alternative to `charging_power` |
+| `target_soc` | entity | Target SoC (%) — shows arc on gauge |
+| `battery_capacity` | number | kWh — required for ETA via `charging_power` |
+| `departure_time` | entity | HA entity whose state contains `HH:MM` — shows departure check (✓ green / ⚠️ red pulsing) |
 
 ### Device configuration
 
 ```yaml
 devices:
-  - name: My Device       # Display name
+  - name: My Device
     entity: sensor.xxx    # Power sensor (W or kW)
-    icon: plug            # Icon name (see below)
-    alert_above: 2000     # Optional — device border pulses red above this wattage
+    icon: plug            # ac | water | tv | washer | computer | server | plug | bolt | car | home
+    alert_above: 2000     # Optional — border pulses red above this wattage
 ```
-
-**Available icons:** `ac`, `water`, `tv`, `washer`, `computer`, `server`, `plug`, `bolt`, `car`
 
 ## Grid power convention
 
@@ -213,7 +281,7 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 
 ## Supported sensor units
 
-- Power sensors: `W` or `kW` (auto-detected)
+- Power sensors: `W` or `kW` (auto-detected via `unit_of_measurement`)
 - Energy sensors: `kWh`
 - Price: `€/kWh`
 - Battery: `%`
@@ -221,91 +289,60 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 
 ## Changelog
 
+### v2.3.1 (2026-03-16)
+- Fix: added `hide`, `compact`, `quick_actions`, `monthly_budget`, `grid_connected`, `sunrise_hour`, `sunset_hour` to `_defaultConfig()` (these config keys were silently ignored before)
+- Fix: added `total_saved` translation key to all 5 languages (was showing English fallback in all locales)
+- Updated README with full config reference for all keys introduced since v2.0.0
+
+### v2.3.0 (2026-03-16)
+- **Bug fix:** Sun arc now reads `sun.sun` entity (`next_rising`, `next_setting`, `elevation`) for accurate local sunrise/sunset times worldwide; falls back to `sunrise_hour`/`sunset_hour` config keys, then to 06:00–21:00
+- **Hide sections:** `hide: [list]` config — hide any card section by name; 19 section IDs supported
+- **Compact mode:** `compact: true` auto-hides non-essential sections (devices, forecast, charts) for mobile/sidebar use; adds `card-compact` CSS class
+- **Savings counter:** Cumulative total €€ saved via solar — persisted daily in `localStorage('sec-savings-log')`; shows "☀️ Total saved: €XXX over N months"
+- **Quick-action buttons:** `quick_actions[]` config — configurable pill buttons calling any HA service; tap animation feedback
+- **Yesterday comparison chips:** +/−% delta vs previous day for solar production & self-sufficiency (stored in `sec-daily-log`)
+- **Personal records hall of fame:** Collapsible panel tracking all-time best solar day, sufficiency %, and peak export (stored in `sec-records`)
+- **In-card event log:** Ring buffer (20 events) with timestamped entries for export-start, solar peak, and grid outage events
+- **CO₂ savings banner:** Grams/kg of CO₂ avoided today + yearly estimate from savings log
+- **Price forecast cheapest window:** "🔌 Optimal charge: HH:00–HH:00 · avg €X.XXX/kWh" chip shown below price chart
+
+### v2.2.0 (2026-03-16)
+- **WOW:** Thunderstorm SVG on high grid import (storm cloud + rain lines + lightning bolt in flow diagram)
+- **WOW:** Battery water fill — animated sinusoidal wave inside battery circle, fill height = SoC%
+- **WOW:** Node gossip lines — all idle nodes linked by dashed animated lines during zero-flow state
+- **WOW:** Sky gradient — card background shifts through dawn/day/dusk/night colors by time of day
+- **WOW:** Export fireworks — celebratory SVG rings + particles on new daily export record (localStorage)
+- **WOW:** EV warp speed — EV card `::before` pseudo-element warps when charging (CSS animation)
+- **Feature:** Grid outage banner — amber islanding alert when `grid_connected` binary sensor is off
+- **Feature:** Monthly budget tracker — burn-rate bar with projected end-of-month cost
+- **Feature:** Device anomaly detection — Welford's online algorithm per device/per hour; orange dot badge on anomalous tiles
+- **Feature:** Stacked area power chart — 180-sample circular buffer; live solar/grid/house polylines
+
+### v2.1.0 (2026-03-16)
+- **WOW:** Aurora glow — card box-shadow pulses through green/blue/purple when self-sufficiency ≥ 80%
+- **WOW:** Grid shockwave — 3 expanding SVG rings on import→export transition
+- **Feature:** Departure ETA — per-EV `departure_time` entity; green ✓ or red ⚠️ depending on whether charge ETA fits
+- **Bug fix:** Charging cost fallback — EV #1 shows correct cost when no `charging:` sensor is configured
+
+### v2.0.0 (2026-03-16)
+- **WOW:** House heartbeat ring — pulsing SVG ring around house orb scaled to total consumption
+- **WOW:** EV lightning storm — ⚡ flashing icon on EV card border when charging
+- **Feature:** V2C charger as SVG node — charger appears as animated node in the energy flow diagram
+- **Feature:** Multiple chargers — `chargers[]` array replaces single `v2c_power` (backward-compatible)
+- **Feature:** EV optimizer — suggests best charge time based on current tariff
+- **Feature:** Device scheduler — suggests best time to run heavy appliances
+
+### v1.9.x (2026-03-15)
+- Batch 1 & 2 WOW effects: particle pulse, battery shimmer, solar burst, night mode, sparklines in orbs, gradient flows, charging ETA ring, grid stress indicator
+- Fullscreen mode, orb detail panel, weather integration, CO₂ tracking, eco-badges
+- Charger SVG node and V2G reverse-flow particles
+
 ### v1.6.0 (2026-03-15)
 - Full internationalization (i18n): English, French, Spanish, Chinese (Simplified), Japanese
-- Auto-detects Home Assistant interface language (`hass.language`), or set manually via `language` config key
-- Language selector dropdown added to the visual config editor (General section)
-- All UI strings translated: node labels, stat tiles, EV tooltips, banners, cost display, recommendations, clipboard toasts
+- Auto-detects HA language; manual override via `language` config key
 
-### v1.5.4 (2026-03-15)
-- V2G bi-directional charging: detects negative charger power (v2cW < -10W) as EV→home discharge
-- Reverse energy flow particles in SVG diagram when V2G is active
-- Charger card and SVG node update to show "▲ V2G" label and green color during discharge
-- Charging cable hidden during V2G (no cable drawn from charger to EV when discharging)
-
-### v1.5.3 (2026-03-15)
-- Animated sun position arc overlaid on the energy flow SVG
-- Bezier arc from sunrise (6:00) to sunset (21:00) with dashed stroke
-- Moving sun dot with golden/orange color shift and drop shadow glow — brighter at noon
-
-### v1.5.2 (2026-03-15)
-- Smart charging recommendation engine with contextual banner above EV section
-- Detects: free solar charging, solar surplus, EDF Tempo ROUGE/BLEU, price alert thresholds
-- Color-coded banners (green = free/good, blue = good opportunity, yellow = info, red = warning)
-
-### v1.5.1 (2026-03-15)
-- Solar self-sufficiency gauge: circular arc SVG widget showing % of consumption covered by solar
-- Daily mode (when export data available): shows solar self-consumed vs total consumption
-- Live mode fallback: real-time ratio of solar to total load
-- Color-coded: green ≥70%, yellow ≥30%, red <30%
-
-### v1.5.0 (2026-03-15)
-- 3D orb nodes in energy flow SVG: each node uses a radialGradient for depth, with specular highlight dot
-- Glassmorphism tiles: `backdrop-filter: blur()` on all stat, EV, device, and daily-summary tiles
-- HUD background texture: animated repeating grid lines + radial ambient glows on card background
-
-### v1.4.2 (2026-03-15)
-- 📋 Share button in card header — copies formatted energy state snapshot to clipboard
-- Snapshot includes: solar, house, grid, battery, V2C, all EV states, costs, solar today, surplus
-- Toast notification confirms copy or warns if clipboard API is unavailable (non-HTTPS)
-
-### v1.4.1 (2026-03-15)
-- Per-device `alert_above` threshold (W): device tile border pulses red when power exceeds the threshold
-- New `devices_sort: true` config option to rank devices by live consumption (highest first)
-- Rank badge (#1, #2…) shown on device tiles when sorting is active
-- Device tooltips include alert warning text when threshold is exceeded
-
-### v1.4.0 (2026-03-15)
-- Home battery / ESS node in the SVG energy flow diagram (bottom-left position)
-- Shows battery SoC%, charge direction (+W charging / W discharging) and animated particles
-- New config keys: `battery_power` (positive = charging, negative = discharging) and `battery_soc`
-- Editor section: 🔋 Home Battery / ESS
-
-### v1.3.0 (2026-03-15)
-- EDF Tempo banner: color-coded daily tariff indicator (BLEU / BLANC / ROUGE) with pulsing red animation
-- Daily cost/savings summary: 3-tile grid showing today's grid cost, solar savings, and export revenue
-- Price alert thresholds: price pill blinks red above `price_alert_high`, turns green below `price_alert_low`
-- Light theme: full light mode palette via `theme: light` config key
-- Sparkline mini charts: 6-hour history area+line charts in Solar Today and Grid stat tiles
-- Tap-to-more-info: clicking EV cards, charger, or device tiles opens the HA entity detail popup
-- New config editor sections for EDF Tempo, daily summary, alerts, and theme
-
-### v1.2.1 (2026-03-15)
-- Animated bezier charging cable between V2C charger and charging EV
-- Prominent cost display on charger card: FREE ☀️ / mixed / grid-only
-- CSS hover tooltips on all key values (stats, battery rings, ETA pills)
-- Config backward-compatible: auto-migrates legacy `ev1_*`/`ev2_*` keys to `evs[]` array
-
-### v1.2.0 (2026-03-15)
-- Full visual config editor with `ha-entity-picker` (entity autocomplete)
-- EV config migrated to `evs[]` array — supports unlimited EVs
-- Dynamic add/remove EVs and smart plug devices from the editor
-
-### v1.1.0 (2026-03-15)
-- V2C charger animations: pulsing border, animated gradient bar, SVG ring pulse
-- EV charging animations: green pulsing border, CHG badge, green battery ring
-- ETA to charge goal pill (supports kW and %/h charging rate sensors)
-- Charging cost breakdown in charger card (solar vs grid contribution)
-- Target SoC arc on battery ring gauge
-
-### v1.0.0 (2026-03-15)
-- Initial release
-- Animated SVG energy flow with particle effects
-- Solar, grid, house, and V2C tracking
-- Dual EV battery ring gauges with car images
-- Smart plug device grid
-- Electricity cost estimation
-- Solar production forecast
+### v1.0.0–v1.5.4 (2026-03-15)
+- Initial release through V2G support, Tempo banner, daily cost summary, sparklines, self-sufficiency gauge, smart charging recommendations, sun arc, glassmorphism UI
 
 ## Contributing
 

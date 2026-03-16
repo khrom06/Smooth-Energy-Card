@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.3.0
+ * Smooth Energy Card v2.3.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.3.0
+ * @version 2.3.1
  */
 
-const VERSION = '2.3.0';
+const VERSION = '2.3.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -52,6 +52,7 @@ const TRANSLATIONS = {
     dev_sched_cheap: p => `Run heavy appliances now — low tariff (${p})`,
     dev_sched_wait:'⏳ Delay heavy appliances — tariff is high',
     weather_lbl:'Weather',
+    total_saved:'Total saved',
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -95,6 +96,7 @@ const TRANSLATIONS = {
     dev_sched_cheap: p => `Lancez vos appareils maintenant — tarif bas (${p})`,
     dev_sched_wait:'⏳ Différez les appareils gourmands — tarif élevé',
     weather_lbl:'Météo',
+    total_saved:'Total économisé',
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -138,6 +140,7 @@ const TRANSLATIONS = {
     dev_sched_cheap: p => `Usa electrodomésticos ahora — tarifa baja (${p})`,
     dev_sched_wait:'⏳ Retrasa electrodomésticos pesados — tarifa alta',
     weather_lbl:'Tiempo',
+    total_saved:'Total ahorrado',
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -181,6 +184,7 @@ const TRANSLATIONS = {
     dev_sched_cheap: p => `现在启动大功率设备 — 低电价 (${p})`,
     dev_sched_wait:'⏳ 延迟大功率设备 — 当前电价高',
     weather_lbl:'天气',
+    total_saved:'总节省',
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -224,6 +228,7 @@ const TRANSLATIONS = {
     dev_sched_cheap: p => `今すぐ大型機器を使用 — 低料金 (${p})`,
     dev_sched_wait:'⏳ 大型機器を遅らせる — 現在料金高',
     weather_lbl:'天気',
+    total_saved:'合計節約額',
   },
 };
 
@@ -1071,6 +1076,14 @@ class SmoothEnergyCard extends HTMLElement {
       chargers: [],                 // additional chargers: [{name, power, image, session_energy}]
       devices_sort: false,
       devices: [],
+      // Layout / UX
+      hide: [],                     // array of section IDs to hide: ['ev','devices','forecast','gauge','surplus','tempo','reco','budget','power_chart','price_chart','eco_badges','ev_optimizer','dev_scheduler','grid_alerts','savings','yday_chips','records','event_log','co2']
+      compact: false,               // auto-hide non-essential sections for mobile/sidebar layouts
+      quick_actions: [],            // [{label, icon, service, entity, data}] — configurable action pill buttons
+      monthly_budget: 0,            // € — monthly cost cap; 0 = disabled
+      grid_connected: '',           // binary_sensor — off = grid outage banner shown
+      sunrise_hour: null,           // override sun arc start hour (6 by default when sun.sun unavailable)
+      sunset_hour: null,            // override sun arc end hour (21 by default when sun.sun unavailable)
     };
   }
 
@@ -1526,8 +1539,10 @@ class SmoothEnergyCard extends HTMLElement {
 
     // Yesterday chips
     this._updateDailyLog(d);
-    const ydayEl = card.querySelector('[data-uid="yday-chips"]');
-    if (ydayEl) ydayEl.innerHTML = this._buildYesterdayChips(d);
+    if (!hide.has('yday_chips')) {
+      const ydayEl = card.querySelector('[data-uid="yday-chips"]');
+      if (ydayEl) ydayEl.innerHTML = this._buildYesterdayChips(d);
+    }
 
     // CO2 banner
     if (!hide.has('co2')) {
@@ -3737,6 +3752,23 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 </select>
               </div>
             </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Theme</label>
+                <select data-key="theme">
+                  <option value="dark"${(c.theme||'dark')==='dark'?' selected':''}>🌙 Dark</option>
+                  <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Compact mode</label>
+                <select data-key="compact">
+                  <option value="false"${!c.compact?' selected':''}>Off — show all sections</option>
+                  <option value="true"${c.compact?' selected':''}>On — hide non-essential sections</option>
+                </select>
+                <span class="hint">Ideal for mobile or sidebar dashboards.</span>
+              </div>
+            </div>
             <div class="row cols-1">
               <div class="field">
                 <label>Sort devices by consumption</label>
@@ -3744,6 +3776,13 @@ class SmoothEnergyCardEditor extends HTMLElement {
                   <option value="false"${!c.devices_sort?' selected':''}>No — keep config order</option>
                   <option value="true"${c.devices_sort?' selected':''}>Yes — highest consumer first</option>
                 </select>
+              </div>
+            </div>
+            <div class="row cols-1">
+              <div class="field">
+                <label>Hidden sections <span style="color:#aaa;font-weight:normal">(comma-separated)</span></label>
+                <input type="text" data-key-list="hide" value="${(c.hide||[]).join(', ')}" placeholder="e.g. forecast, eco_badges, event_log">
+                <span class="hint">Available: ev, devices, forecast, gauge, surplus, tempo, reco, budget, power_chart, price_chart, eco_badges, ev_optimizer, dev_scheduler, grid_alerts, savings, yday_chips, records, event_log, co2</span>
               </div>
             </div>
           </div>
@@ -3892,14 +3931,55 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <span class="hint">0 = no export revenue shown. 0.1 = 10% of price.</span>
               </div>
               <div class="field">
-                <label>Theme</label>
-                <select data-key="theme">
-                  <option value="dark"${(c.theme||'dark')==='dark'?' selected':''}>🌙 Dark</option>
-                  <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
-                  <option value="auto"${c.theme==='auto'?' selected':''}>🖥️ Auto (system)</option>
-                </select>
+                <label>Monthly budget (€)</label>
+                <input type="number" data-key="monthly_budget" value="${c.monthly_budget ?? 0}" step="1" min="0" placeholder="e.g. 150">
+                <span class="hint">Shows burn-rate bar with projected cost. 0 = disabled.</span>
               </div>
             </div>
+            <div class="row cols-1">
+              <div class="field">
+                <label>Grid connected sensor (islanding detection)</label>
+                <ha-selector data-key="grid_connected"></ha-selector>
+                <span class="hint">binary_sensor: off state = grid outage banner shown.</span>
+              </div>
+            </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Grid demand alert threshold (W)</label>
+                <input type="number" data-key="grid_demand_threshold" value="${c.grid_demand_threshold ?? 3000}" step="100" min="0" placeholder="3000">
+                <span class="hint">Peak demand alert above this wattage.</span>
+              </div>
+              <div class="field">
+                <label>Tariff forecast sensor</label>
+                <ha-selector data-key="tariff_forecast"></ha-selector>
+                <span class="hint">Sensor with raw_today / prices attribute for price chart.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QUICK ACTIONS -->
+        <div class="section">
+          <div class="section-head"><h3>⚡ Quick Actions</h3></div>
+          <div class="section-body">
+            <div class="row cols-1">
+              <div class="field">
+                <span class="hint" style="font-size:0.78em;color:var(--secondary-text-color)">Add configurable pill buttons to the card header. Each button calls a Home Assistant service when tapped.</span>
+              </div>
+            </div>
+            ${(c.quick_actions||[]).map((a, i) => `
+            <div class="list-item">
+              <div class="list-item-head"><span>${a.icon||'⚡'} ${a.label||'Action '+i}</span><button class="btn-remove" data-action="remove-qa" data-idx="${i}">✕</button></div>
+              <div class="row cols-2">
+                <div class="field"><label>Label</label><input type="text" data-qa="${i}" data-qa-key="label" value="${(a.label||'').replace(/"/g,'&quot;')}" placeholder="e.g. Night Mode"></div>
+                <div class="field"><label>Icon (emoji)</label><input type="text" data-qa="${i}" data-qa-key="icon" value="${(a.icon||'').replace(/"/g,'&quot;')}" placeholder="e.g. 🌙"></div>
+              </div>
+              <div class="row cols-2">
+                <div class="field"><label>Service (domain.service)</label><input type="text" data-qa="${i}" data-qa-key="service" value="${(a.service||'').replace(/"/g,'&quot;')}" placeholder="e.g. scene.turn_on"></div>
+                <div class="field"><label>Entity (optional)</label><ha-selector data-qa="${i}" data-qa-key-entity="true"></ha-selector></div>
+              </div>
+            </div>`).join('')}
+            <button class="btn-add" data-action="add-qa">+ Add Quick Action</button>
           </div>
         </div>
 
@@ -4142,11 +4222,41 @@ class SmoothEnergyCardEditor extends HTMLElement {
     // Top-level text/number inputs
     sr.querySelectorAll('input[data-key], select[data-key]').forEach(el => {
       el.addEventListener('change', () => {
-        if (el.dataset.key === 'devices_sort') {
-          this._set('devices_sort', el.value === 'true');
+        const key = el.dataset.key;
+        if (key === 'devices_sort' || key === 'compact') {
+          this._set(key, el.value === 'true');
+        } else if (key === 'monthly_budget' || key === 'feed_in_rate' || key === 'battery_rated_capacity' || key === 'grid_demand_threshold') {
+          this._set(key, parseFloat(el.value) || 0);
         } else {
-          this._set(el.dataset.key, el.value);
+          this._set(key, el.value);
         }
+      });
+    });
+
+    // Hide list input (comma-separated string → array)
+    sr.querySelectorAll('input[data-key-list]').forEach(el => {
+      el.addEventListener('change', () => {
+        const val = el.value.split(',').map(s => s.trim()).filter(Boolean);
+        this._set(el.dataset.keyList, val);
+      });
+    });
+
+    // Quick-action inputs
+    sr.querySelectorAll('input[data-qa]').forEach(el => {
+      const idx = parseInt(el.dataset.qa), key = el.dataset.qaKey;
+      el.addEventListener('change', () => {
+        const qas = (this._config.quick_actions || []).map((a, i) => i === idx ? { ...a, [key]: el.value } : a);
+        this._set('quick_actions', qas);
+      });
+    });
+    sr.querySelectorAll('ha-selector[data-qa]').forEach(el => {
+      const idx = parseInt(el.dataset.qa);
+      if (this._hass) el.hass = this._hass;
+      el.selector = { entity: {} };
+      el.value = ((this._config.quick_actions || [])[idx] || {}).entity || '';
+      el.addEventListener('value-changed', e => {
+        const qas = (this._config.quick_actions || []).map((a, i) => i === idx ? { ...a, entity: e.detail.value } : a);
+        this._set('quick_actions', qas);
       });
     });
 
@@ -4205,6 +4315,14 @@ class SmoothEnergyCardEditor extends HTMLElement {
         if (action === 'remove-charger') this._removeCharger(idx);
         if (action === 'add-device')    this._addDevice();
         if (action === 'remove-device') this._removeDevice(idx);
+        if (action === 'add-qa') {
+          const qas = [...(this._config.quick_actions||[]), {label:'New Action', icon:'⚡', service:'', entity:''}];
+          this._set('quick_actions', qas); this._render();
+        }
+        if (action === 'remove-qa') {
+          const qas = (this._config.quick_actions||[]).filter((_,i) => i !== parseInt(btn.dataset.idx));
+          this._set('quick_actions', qas); this._render();
+        }
       });
     });
   }
