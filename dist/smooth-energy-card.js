@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.8.0
+ * Smooth Energy Card v2.0.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.9.4';
+const VERSION = '2.0.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -548,6 +548,12 @@ const CSS = `
   @keyframes v2c-svg-pulse { 0%{opacity:0.6;r:28} 100%{opacity:0;r:46} }
   .v2c-bolt-active { animation:bolt-blink 0.9s ease-in-out infinite alternate; }
   @keyframes bolt-blink { from{opacity:1} to{opacity:0.35} }
+  /* ── WOW: Node heartbeat — house orb breathing pulse ── */
+  @keyframes house-hb { 0%,100%{opacity:var(--hb-op,0.18);transform:scale(1)} 50%{opacity:0;transform:scale(1.6)} }
+  .house-hb-ring { fill:none; stroke-width:1.5; animation:house-hb var(--hb-dur,2.5s) ease-in-out infinite; transform-origin:180px 105px; }
+  /* ── WOW: Cable plasma shimmer ── */
+  @keyframes cable-plasma { 0%,100%{opacity:0.55;stroke-width:2.5} 50%{opacity:0.9;stroke-width:3.5} }
+  .cable-track { animation:cable-plasma 1.4s ease-in-out infinite; }
 
   .surplus { background:linear-gradient(90deg,rgba(52,211,153,0.08),rgba(16,185,129,0.04)); border:1px solid rgba(52,211,153,0.2); border-radius:10px; padding:7px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.78em; }
   .surplus .s-lbl{color:#34d399;font-weight:600;} .surplus .s-val{color:#34d399;font-weight:700;font-size:1.05em;}
@@ -1115,6 +1121,12 @@ class SmoothEnergyCard extends HTMLElement {
         w: ch.power ? toWatts(h, ch.power) : 0,
         sessionKwh: ch.session_energy ? numState(h, ch.session_energy, null) : null,
       })),
+      // SVG V2C display: falls back to first active charger[] when v2c_power not configured
+      svgV2cW: (() => {
+        if (c.v2c_power) return v2cW;
+        const firstActive = (c.chargers || []).find(ch => ch.power && Math.abs(toWatts(h, ch.power)) > 10);
+        return firstActive ? toWatts(h, firstActive.power) : 0;
+      })(),
     };
   }
 
@@ -1836,8 +1848,8 @@ class SmoothEnergyCard extends HTMLElement {
     const R=44, Rv=28;
     const bP={x:58,y:175};
     const Rb=26;
-    const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=Math.abs(d.v2cW)>10;
-    const hasV2c = !!this._config.v2c_power;
+    const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=Math.abs(d.svgV2cW)>10;
+    const hasV2c = !!this._config.v2c_power || d.chargerActive;
     const sPth=`M${sP.x},${sP.y} C${(sP.x+hP.x)/2-10},${sP.y} ${(sP.x+hP.x)/2+10},${hP.y} ${hP.x},${hP.y}`;
     const iPth=`M${gP.x},${gP.y} C${(gP.x+hP.x)/2+10},${gP.y} ${(gP.x+hP.x)/2-10},${hP.y} ${hP.x},${hP.y}`;
     const ePth=`M${hP.x},${hP.y} C${(hP.x+gP.x)/2-10},${hP.y} ${(hP.x+gP.x)/2+10},${gP.y} ${gP.x},${gP.y}`;
@@ -1846,7 +1858,7 @@ class SmoothEnergyCard extends HTMLElement {
     const bChgPth=`M${hP.x},${hP.y} C${(bP.x+hP.x)/2},${hP.y} ${(bP.x+hP.x)/2},${bP.y} ${bP.x},${bP.y}`;
     const bDisPth=`M${bP.x},${bP.y} C${(bP.x+hP.x)/2},${bP.y} ${(bP.x+hP.x)/2},${hP.y} ${hP.x},${hP.y}`;
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
-    const vSolarPct=(vOn&&d.v2cW>0)?Math.round((d.solarFreeW/d.v2cW)*100):0;
+    const vSolarPct=(vOn&&d.svgV2cW>0)?Math.round((d.solarFreeW/d.svgV2cW)*100):0;
     const sun = getSunArc();
     // Device laser color: blend solar-yellow ↔ grid-red by solar share
     const solarShareSvg = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
@@ -1977,6 +1989,15 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+20}" class="n-name">${this._t('solar')}</text>
       <g data-uid="orb-spark-solar" clip-path="url(#clip-sol)" opacity="0.55"></g>
+      ${(() => {
+        // WOW: House heartbeat — pulse rate & color scales with consumption
+        const w = d.houseW;
+        if (w < 100) return '';
+        const dur = w > 4000 ? 0.65 : w > 2500 ? 1.05 : w > 1000 ? 1.9 : 3.2;
+        const col = w > 3000 ? '#ef4444' : w > 1500 ? '#f59e0b' : '#60a5fa';
+        const op  = w > 3000 ? 0.55 : w > 1500 ? 0.38 : w > 500 ? 0.22 : 0.13;
+        return `<circle cx="${hP.x}" cy="${hP.y}" r="${R+8}" class="house-hb-ring" style="stroke:${col};--hb-dur:${dur}s;--hb-op:${op}"/>`;
+      })()}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5" data-uid="house-orb" style="cursor:pointer"/>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
@@ -1998,11 +2019,11 @@ class SmoothEnergyCard extends HTMLElement {
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
       ${d.v2gActive
         ? `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#34d399" class="v2c-bolt-active">⚡</text>
-           <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.v2cW))}</text>
+           <text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.svgV2cW))}</text>
            <text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">${this._t('v2g')}</text>`
         : `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${vOn?'#c084fc':'#2a2050'}" class="${vOn?'v2c-bolt-active':''}">⚡</text>
            ${vOn
-             ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(d.v2cW)}</text>
+             ? `<text x="${vP.x}" y="${vP.y+12}" class="n-name" style="font-size:7.5px">${fmtW(d.svgV2cW)}</text>
                 ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">☀️${vSolarPct}% free</text>`:''}`
              : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" opacity="0.35" style="font-size:8px">${this._t('v2c')}</text>`}
         `
@@ -2172,8 +2193,21 @@ class SmoothEnergyCard extends HTMLElement {
     defs.innerHTML = `
       <linearGradient id="cbl-grad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#c084fc"/>
+        <stop offset="50%" stop-color="#818cf8"/>
         <stop offset="100%" stop-color="#34d399"/>
-      </linearGradient>`;
+      </linearGradient>
+      <filter id="cbl-blur" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="3"/>
+      </filter>`;
+
+    // Plasma glow (blurred wide path behind cable)
+    const glow = document.createElementNS(ns, 'path');
+    glow.setAttribute('d', pathD);
+    glow.setAttribute('fill', 'none');
+    glow.setAttribute('stroke', 'url(#cbl-grad)');
+    glow.setAttribute('stroke-width', '9');
+    glow.setAttribute('opacity', '0.18');
+    glow.setAttribute('filter', 'url(#cbl-blur)');
 
     const track = document.createElementNS(ns, 'path');
     track.setAttribute('d', pathD);
@@ -2181,7 +2215,7 @@ class SmoothEnergyCard extends HTMLElement {
     track.setAttribute('stroke', 'url(#cbl-grad)');
     track.setAttribute('stroke-width', '2.5');
     track.setAttribute('stroke-linecap', 'round');
-    track.setAttribute('opacity', '0.5');
+    track.setAttribute('opacity', '0.6');
     track.classList.add('cable-track');
 
     const animPath = document.createElementNS(ns, 'path');
@@ -2194,6 +2228,7 @@ class SmoothEnergyCard extends HTMLElement {
     particles.id = 'cable-particles';
 
     svg.appendChild(defs);
+    svg.appendChild(glow);
     svg.appendChild(track);
     svg.appendChild(animPath);
     svg.appendChild(particles);
@@ -2204,9 +2239,72 @@ class SmoothEnergyCard extends HTMLElement {
       const p = shadow.getElementById('cable-anim-path');
       const cont = shadow.getElementById('cable-particles');
       if (!p || !cont) { clearInterval(interval); return; }
-      this._spawnDot(p, cont, '#a78bfa');
-    }, 350);
+      this._spawnLaser(p, cont, '#a78bfa', 0.7);
+    }, 320);
     this._particleTimers.push(interval);
+
+    // Lightning storm: periodic crackling arcs alongside the cable
+    const lightningFn = () => {
+      const animP = shadow.getElementById('cable-anim-path');
+      const cont  = shadow.getElementById('cable-particles');
+      if (!animP || !cont) return;
+      this._spawnLightningArc(animP, cont);
+      // Random chance of double-bolt
+      if (Math.random() > 0.55) {
+        setTimeout(() => {
+          const p2 = shadow.getElementById('cable-anim-path');
+          const c2 = shadow.getElementById('cable-particles');
+          if (p2 && c2) this._spawnLightningArc(p2, c2);
+        }, 60 + Math.random() * 100);
+      }
+    };
+    const lightningInterval = setInterval(lightningFn, 650 + Math.random() * 900);
+    this._particleTimers.push(lightningInterval);
+  }
+
+  // WOW: Lightning bolt arc along the cable — crackly plasma filament
+  _spawnLightningArc(pathEl, container) {
+    const len = pathEl.getTotalLength();
+    if (!len) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    // Sample ~7 points along path with random perpendicular jitter
+    const numPts = 7;
+    const pts = [];
+    for (let i = 0; i <= numPts; i++) {
+      const t = i / numPts;
+      const pos = pathEl.getPointAtLength(t * len);
+      // Jitter magnitude: bell-curve (zero at ends, max in middle)
+      const bell = 4 * t * (1 - t);
+      const jitter = (Math.random() - 0.5) * 24 * bell;
+      // Perpendicular direction: rotate tangent 90°
+      const dt = 0.02;
+      const p0 = pathEl.getPointAtLength(Math.max(0, t * len - dt * len));
+      const p1 = pathEl.getPointAtLength(Math.min(len, t * len + dt * len));
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const mag = Math.hypot(dx, dy) || 1;
+      pts.push({ x: pos.x + jitter * (-dy / mag), y: pos.y + jitter * (dx / mag) });
+    }
+    const polyline = document.createElementNS(ns, 'polyline');
+    polyline.setAttribute('points', pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+    polyline.setAttribute('fill', 'none');
+    const bright = Math.random() > 0.4;
+    polyline.setAttribute('stroke', bright ? '#e0f2fe' : '#a5f3fc');
+    polyline.setAttribute('stroke-width', bright ? '1.5' : '0.8');
+    polyline.setAttribute('stroke-linecap', 'round');
+    polyline.setAttribute('stroke-linejoin', 'round');
+    polyline.style.filter = `drop-shadow(0 0 ${bright?5:3}px #7dd3fc)`;
+    container.appendChild(polyline);
+    // Flash: instant bright → fast fade
+    const t0 = performance.now();
+    const dur = 160 + Math.random() * 140;
+    const step = now => {
+      const p = (now - t0) / dur;
+      if (p >= 1) { polyline.remove(); return; }
+      const op = p < 0.15 ? 1 : 1 - (p - 0.15) / 0.85;
+      polyline.setAttribute('opacity', (op * 0.92).toFixed(3));
+      this._animFrames.push(requestAnimationFrame(step));
+    };
+    this._animFrames.push(requestAnimationFrame(step));
   }
 
   _clearParticles() {
