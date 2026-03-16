@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.3';
+const VERSION = '1.8.4';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -859,20 +859,17 @@ class SmoothEnergyCard extends HTMLElement {
   static _defaultConfig() {
     return {
       title: 'Energy Dashboard',
-      solar_power: 'sensor.shelly_channel_2_power',
-      grid_power: 'sensor.shelly_channel_1_power',
-      house_power: 'sensor.consommation_maison_live',
-      v2c_power: 'sensor.evse_192_168_1_67_puissance_de_charge',
-      kwh_price: 'sensor.prix_du_kwh_en_cours',
-      solar_today: 'sensor.hoymiles_gateway_solarh_6402640_today_eq',
-      solar_forecast_today: 'sensor.energy_production_today',
-      solar_forecast_tomorrow: 'sensor.energy_production_tomorrow',
-      v2c_session_energy: 'sensor.energie_v2c_session',
-      v2c_image: '/local/images/v2ctrydan-1.png',
-      evs: [
-        { name:'Cupra Tavascan', battery:'sensor.cupra_tavascan_battery_level', range:'sensor.cupra_tavascan_electric_range', image:'/local/pycupra/image_VSSZZZKR3RA007706_front_cropped.png', charging:'binary_sensor.cupra_tavascan_charging_state', charging_power:'sensor.cupra_tavascan_charging_power', target_soc:'sensor.cupra_tavascan_target_state_of_charge', battery_capacity:77 },
-        { name:'Fiat 500e', battery:'sensor.fiat_500e_berline_my24_hvbattery_charge', range:'sensor.fiat_500e_berline_my24_driving_range', image:'/local/images/Home/fiat500.jpg', charging:'', charging_rate:'sensor.fiat_500e_berline_my24_charging_rate', target_soc:'', battery_capacity:37.3 },
-      ],
+      solar_power: '',
+      grid_power: '',
+      house_power: '',
+      v2c_power: '',
+      kwh_price: '',
+      solar_today: '',
+      solar_forecast_today: '',
+      solar_forecast_tomorrow: '',
+      v2c_session_energy: '',
+      v2c_image: '',
+      evs: [],
       tempo_color_today: '',
       tempo_color_tomorrow: '',
       grid_energy_import: '',   // must be a DAILY-reset sensor (utility_meter helper), NOT a cumulative counter
@@ -892,14 +889,7 @@ class SmoothEnergyCard extends HTMLElement {
       tariff_forecast: '',          // sensor with raw_today/prices array attribute
       chargers: [],                 // additional chargers: [{name, power, image, session_energy}]
       devices_sort: false,
-      devices: [
-        { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
-        { name:'Ballon ECS',    entity:'sensor.shelly2_channel_2_power', icon:'water' },
-        { name:'TV Box',        entity:'sensor.salon_tvbox_power',       icon:'tv' },
-        { name:'Lave-linge',   entity:'sensor.machinealaver_power',      icon:'washer' },
-        { name:'Informatique', entity:'sensor.smart_switch_24022179241609510d0148e1e9ed2d80_power', icon:'computer' },
-        { name:'RaspPi',       entity:'sensor.tplink_ha_rpi_consommation_actuelle', icon:'server' },
-      ],
+      devices: [],
     };
   }
 
