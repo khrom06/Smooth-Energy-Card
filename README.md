@@ -188,6 +188,7 @@ devices:
 | `charging_rate` | entity | Charging rate sensor (%/h) — alternative to `charging_power` |
 | `target_soc` | entity | Target state of charge sensor (%) — shows arc on gauge (optional) |
 | `battery_capacity` | number | Battery capacity in kWh — required for ETA when using `charging_power` |
+| `departure_time` | entity | Time/datetime sensor whose state contains `"HH:MM"` — card shows ✓ 07:30 (green) or ⚠️ 07:30 (red pulsing) depending on whether charge ETA fits before the deadline |
 
 ### Device configuration
 

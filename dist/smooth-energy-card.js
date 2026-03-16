@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -609,6 +609,10 @@ const CSS = `
   .ev-warranty.warn{ color:#fbbf24; background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.2); }
   .ev-warranty.exp { color:#f87171; background:rgba(248,113,113,0.08); border-color:rgba(248,113,113,0.2); }
   .ev-health { font-size:0.6em; font-weight:700; color:#60a5fa; }
+  .ev-dep { font-size:0.62em; font-weight:700; text-align:center; border-radius:6px; padding:2px 7px; margin-top:2px; display:inline-block; }
+  .ev-dep.dep-ok   { color:#34d399; background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.25); }
+  .ev-dep.dep-warn { color:#f87171; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.25); animation:dep-pulse 1.4s ease-in-out infinite; }
+  @keyframes dep-pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
   @keyframes eta-fade{from{opacity:1}to{opacity:0.65}}
 
   .charger-power{font-size:1.2em;font-weight:800;color:#c084fc;}
@@ -802,6 +806,14 @@ const CSS = `
   .card { transition: box-shadow 2s ease; }
   .card.amb-surplus { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 60px rgba(52,211,153,0.12),inset 0 0 100px rgba(52,211,153,0.025); }
   .card.amb-import  { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 60px rgba(248,113,113,0.1),inset 0 0 100px rgba(248,113,113,0.03); }
+  /* ── WOW: AURORA GLOW (≥80% solar self-sufficiency) ── */
+  @keyframes aurora-glow {
+    0%   { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 80px rgba(52,211,153,0.2),inset 0 0 140px rgba(52,211,153,0.05); }
+    33%  { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 80px rgba(96,165,250,0.2),inset 0 0 140px rgba(96,165,250,0.05); }
+    66%  { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 80px rgba(167,139,250,0.22),inset 0 0 140px rgba(167,139,250,0.05); }
+    100% { box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 80px rgba(52,211,153,0.2),inset 0 0 140px rgba(52,211,153,0.05); }
+  }
+  .card.amb-aurora { animation:aurora-glow 7s ease-in-out infinite; }
 
   /* ── WOW: PEAK FLASH & ALARM ── */
   @keyframes peak-flash { 0%,100%{box-shadow:0 8px 40px rgba(0,0,0,0.5)} 50%{box-shadow:0 8px 40px rgba(0,0,0,0.5),inset 0 0 0 2px rgba(248,113,113,0.9),0 0 60px rgba(248,113,113,0.35)} }
@@ -859,6 +871,9 @@ const CSS = `
   /* ── WOW #3: SOLAR BURST ── */
   @keyframes solar-burst-ring { 0%{r:44;opacity:0.7;stroke-width:2.5} 100%{r:80;opacity:0;stroke-width:0.5} }
   .solar-burst-ring { animation:solar-burst-ring 0.7s ease-out forwards; fill:none; stroke:#fbbf24; }
+  /* ── WOW #4: GRID SHOCKWAVE (import→export flip) ── */
+  @keyframes grid-shockwave { 0%{r:44;opacity:0.75;stroke-width:2} 100%{r:95;opacity:0;stroke-width:0.5} }
+  .grid-shockwave-ring { animation:grid-shockwave 1s ease-out forwards; fill:none; stroke:#34d399; }
 
   /* ── WOW #14: NODE DETAIL PANEL ── */
   .node-panel { background:rgba(12,18,40,0.97); border:1px solid rgba(96,165,250,0.18); border-radius:14px; padding:14px 16px; margin-top:10px; display:none; }
@@ -1042,11 +1057,46 @@ class SmoothEnergyCard extends HTMLElement {
         const msLeft = warrantyEnd - today;
         warrantyMonths = msLeft > 0 ? Math.round(msLeft / (1000 * 60 * 60 * 24 * 30)) : 0;
       }
-      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, battHealth, warrantyMonths };
+      // Departure ETA check
+      let etaHours = null;
+      if (isCharging && ev.target_soc) {
+        const tSoc = numState(h, ev.target_soc, null);
+        if (tSoc != null && tSoc > bat) {
+          if (ev.charging_rate) {
+            const unit = unitOf(h, ev.charging_rate);
+            const rate = numState(h, ev.charging_rate, 0);
+            if (unit === '%/h' && rate > 0) etaHours = (tSoc - bat) / rate;
+          } else if (ev.charging_power && (ev.battery_capacity || 60) > 0) {
+            const powerKw = toWatts(h, ev.charging_power) / 1000;
+            if (powerKw > 0.1) etaHours = (tSoc - bat) / ((powerKw / (ev.battery_capacity || 60)) * 100);
+          }
+        }
+      }
+      let depStatus = null;
+      if (ev.departure_time) {
+        const depState = strState(h, ev.departure_time);
+        const match = depState && depState.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+          const depH = parseInt(match[1]), depM = parseInt(match[2]);
+          const now = new Date();
+          const depDate = new Date(now);
+          depDate.setHours(depH, depM, 0, 0);
+          if (depDate <= now) depDate.setDate(depDate.getDate() + 1);
+          const hoursUntilDep = (depDate - now) / 3600000;
+          const timeStr = `${String(depH).padStart(2,'0')}:${String(depM).padStart(2,'0')}`;
+          depStatus = { time: timeStr, ok: etaHours == null || etaHours <= hoursUntilDep };
+        }
+      }
+      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, battHealth, warrantyMonths, depStatus };
     });
     // Fallback: if charger active and no EV reports charging state, mark first EV
     if (chargerActive && evData.length > 0 && !evData.some(ev => ev.isCharging) && !evData[0].charging) {
-      evData[0] = { ...evData[0], isCharging: true };
+      const fallbackW = v2cW > 10 ? v2cW : (() => {
+        const firstActive = (c.chargers || []).find(ch => ch.power && Math.abs(toWatts(h, ch.power)) > 10);
+        return firstActive ? Math.abs(toWatts(h, firstActive.power)) : 0;
+      })();
+      const fallbackCostH = (fallbackW > 10 && price != null) ? (fallbackW / 1000) * price : null;
+      evData[0] = { ...evData[0], isCharging: true, chargingCostH: fallbackCostH };
     }
 
     const battW   = c.battery_power ? toWatts(h, c.battery_power) : 0;
@@ -1176,7 +1226,7 @@ class SmoothEnergyCard extends HTMLElement {
 
     // WOW: ambient glow + peak alarm + eclipse shadow classes
     const newClasses = this._cardClasses(d);
-    ['amb-surplus','amb-import','peak-alarm','weather-cloudy'].forEach(c => card.classList.remove(c));
+    ['amb-surplus','amb-import','amb-aurora','peak-alarm','weather-cloudy'].forEach(c => card.classList.remove(c));
     if (newClasses) newClasses.split(' ').forEach(c => c && card.classList.add(c));
     // WOW: peak flash (one-shot animation when threshold newly crossed)
     const threshold = parseFloat(this._config.grid_demand_threshold) || 3000;
@@ -1188,6 +1238,10 @@ class SmoothEnergyCard extends HTMLElement {
       setTimeout(() => card.classList.remove('peak-flash'), 2500);
     }
     this._wasPeak = isPeak;
+    // WOW #4: grid shockwave on import → export transition
+    const isExp = d.isExp;
+    if (isExp && !this._wasExport) this._gridShockwave(shadow);
+    this._wasExport = isExp;
     // WOW #3: solar burst on new daily peak
     if (d.solarW > 50 && d.solarW > (this._solarPeakToday || 0)) {
       this._solarPeakToday = d.solarW;
@@ -1410,6 +1464,28 @@ class SmoothEnergyCard extends HTMLElement {
         }
       } else if (etaEl) {
         etaEl.remove();
+      }
+
+      // Departure ETA pill
+      let depEl = evCard.querySelector('.ev-dep');
+      if (ev.depStatus) {
+        const depCls = ev.depStatus.ok ? 'dep-ok' : 'dep-warn';
+        const depTxt = `${ev.depStatus.ok ? '✓' : '⚠️'} ${ev.depStatus.time}`;
+        if (depEl) {
+          depEl.className = `ev-dep ${depCls}`;
+          depEl.textContent = depTxt;
+        } else {
+          depEl = document.createElement('div');
+          depEl.className = `ev-dep ${depCls}`;
+          depEl.textContent = depTxt;
+          const costEl2 = evCard.querySelector('.ev-cost');
+          const etaEl3 = evCard.querySelector('.ev-eta');
+          const anchor = costEl2 || etaEl3;
+          if (anchor) anchor.insertAdjacentElement('afterend', depEl);
+          else evCard.appendChild(depEl);
+        }
+      } else if (depEl) {
+        depEl.remove();
       }
 
       // Battery ring tooltip
@@ -1773,7 +1849,8 @@ class SmoothEnergyCard extends HTMLElement {
   _cardClasses(d) {
     const c = this._config;
     const threshold = parseFloat(c.grid_demand_threshold) || 3000;
-    const amb = d.surplusW > 200 ? 'amb-surplus' : d.gridImpW > 500 ? 'amb-import' : '';
+    const suff = d.daySuffPct != null ? d.daySuffPct : d.liveSuffPct;
+    const amb = suff >= 80 ? 'amb-aurora' : d.surplusW > 200 ? 'amb-surplus' : d.gridImpW > 500 ? 'amb-import' : '';
     const peak = d.gridImpW > threshold ? 'peak-alarm' : '';
     const cloud = ['cloudy','overcast','fog','rainy','pouring','snowy'].some(w => (d.weatherCondition||'').toLowerCase().includes(w)) ? 'weather-cloudy' : '';
     return [amb, peak, cloud].filter(Boolean).join(' ');
@@ -2094,6 +2171,8 @@ class SmoothEnergyCard extends HTMLElement {
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
     const costLine = (ev.isCharging && ev.chargingCostH != null)
       ? `<div class="ev-cost">~${ev.chargingCostH.toFixed(3)} €/h</div>` : '';
+    const depLine = ev.depStatus
+      ? `<div class="ev-dep ${ev.depStatus.ok ? 'dep-ok' : 'dep-warn'}">${ev.depStatus.ok ? '✓' : '⚠️'} ${ev.depStatus.time}</div>` : '';
     const batTip = this._t('tip_bat', ev.name, ev.bat, ev.rng, ev.targetSoc, ev.isCharging && ev.eta ? ev.eta : null)
       + (ev.isCharging ? '\n' + this._t('charging_via') : '');
 
@@ -2115,6 +2194,7 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="ev-range" data-tip="${this._t('tip_range', ev.rng, Math.round(ev.rng / 6))}">${ev.rng} <em>km</em></div>
         ${etaLine}
         ${costLine}
+        ${depLine}
         ${ev.battHealth != null ? `<div class="ev-health">🔋 ${Math.round(ev.battHealth)}% health</div>` : ''}
         ${ev.warrantyMonths != null ? (() => {
           const cls = ev.warrantyMonths <= 0 ? 'exp' : ev.warrantyMonths < 12 ? 'warn' : 'ok';
@@ -2157,6 +2237,24 @@ class SmoothEnergyCard extends HTMLElement {
         svg.appendChild(ring);
         setTimeout(() => ring.remove(), 900 + i * 180);
       }, i * 60);
+    }
+  }
+
+  _gridShockwave(shadow) {
+    const gP = { x: 302, y: 62 };
+    const svg = shadow.querySelector('.flow-svg');
+    if (!svg) return;
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ring.setAttribute('cx', gP.x);
+        ring.setAttribute('cy', gP.y);
+        ring.setAttribute('r', 44);
+        ring.setAttribute('class', 'grid-shockwave-ring');
+        ring.style.animationDelay = `${i * 0.22}s`;
+        svg.appendChild(ring);
+        setTimeout(() => ring.remove(), 1100 + i * 220);
+      }, i * 70);
     }
   }
 
