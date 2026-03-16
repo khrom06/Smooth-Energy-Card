@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.6.0
+ * Smooth Energy Card v1.7.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.6.0
  */
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -38,6 +38,9 @@ const TRANSLATIONS = {
     reco_expensive: p => `High tariff now (${p}) — wait for off-peak`,
     tip_range: (km, h) => `${km} km range\n≈ ${h} h driving`,
     tip_bat: (name, bat, rng, tgt, eta) => [name,`Battery: ${bat}%`,`Range: ${rng} km`,tgt?`Target SoC: ${tgt}%`:'',eta?`ETA: ${eta}`:''].filter(Boolean).join('\n'),
+    demand_high: w => `High grid demand (${w}) — consider reducing load`,
+    peak_shave: w => `Battery available — discharge can offset ${w} of grid import`,
+    peak_shave_solar: w => `${w} solar available — switch heavy loads to solar`,
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -67,6 +70,9 @@ const TRANSLATIONS = {
     reco_expensive: p => `Tarif élevé (${p}) — attendre les heures creuses`,
     tip_range: (km, h) => `${km} km d'autonomie\n≈ ${h} h de conduite`,
     tip_bat: (name, bat, rng, tgt, eta) => [name,`Batterie: ${bat}%`,`Autonomie: ${rng} km`,tgt?`SoC cible: ${tgt}%`:'',eta?`Durée: ${eta}`:''].filter(Boolean).join('\n'),
+    demand_high: w => `Soutirage réseau élevé (${w}) — réduire la consommation`,
+    peak_shave: w => `Batterie disponible — décharge peut compenser ${w} de soutirage`,
+    peak_shave_solar: w => `${w} solaire disponible — basculer les appareils sur solaire`,
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -96,6 +102,9 @@ const TRANSLATIONS = {
     reco_expensive: p => `Tarifa alta (${p}) — esperar horas valle`,
     tip_range: (km, h) => `${km} km de autonomía\n≈ ${h} h conduciendo`,
     tip_bat: (name, bat, rng, tgt, eta) => [name,`Batería: ${bat}%`,`Autonomía: ${rng} km`,tgt?`SoC objetivo: ${tgt}%`:'',eta?`ETA: ${eta}`:''].filter(Boolean).join('\n'),
+    demand_high: w => `Alta demanda de red (${w}) — reducir consumo`,
+    peak_shave: w => `Batería disponible — descarga puede compensar ${w}`,
+    peak_shave_solar: w => `${w} solar disponible — usar cargas pesadas ahora`,
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -125,6 +134,9 @@ const TRANSLATIONS = {
     reco_expensive: p => `当前高电价 (${p}) — 等待低谷时段`,
     tip_range: (km, h) => `续航 ${km} km\n约 ${h} 小时行驶`,
     tip_bat: (name, bat, rng, tgt, eta) => [name,`电池: ${bat}%`,`续航: ${rng} km`,tgt?`目标SoC: ${tgt}%`:'',eta?`预计: ${eta}`:''].filter(Boolean).join('\n'),
+    demand_high: w => `电网需求高 (${w}) — 减少用电`,
+    peak_shave: w => `电池可用 — 放电抵消 ${w} 用网电量`,
+    peak_shave_solar: w => `${w} 太阳能可用 — 现在使用大功率设备`,
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -154,6 +166,9 @@ const TRANSLATIONS = {
     reco_expensive: p => `現在高料金 (${p}) — オフピーク時間まで待つ`,
     tip_range: (km, h) => `航続距離 ${km} km\n約 ${h} 時間走行`,
     tip_bat: (name, bat, rng, tgt, eta) => [name,`バッテリー: ${bat}%`,`航続距離: ${rng} km`,tgt?`目標SoC: ${tgt}%`:'',eta?`所要時間: ${eta}`:''].filter(Boolean).join('\n'),
+    demand_high: w => `系統需要高 (${w}) — 電力消費を控えてください`,
+    peak_shave: w => `蓄電池使用可能 — ${w} の系統電力を補償できます`,
+    peak_shave_solar: w => `${w} の余剰太陽光 — 今が大型機器の使用好機`,
   },
 };
 
@@ -405,7 +420,7 @@ const CSS = `
     background: radial-gradient(ellipse 70% 50% at 20% 20%, rgba(96,165,250,0.06) 0%, transparent 70%),
       radial-gradient(ellipse 60% 60% at 80% 80%, rgba(192,132,252,0.05) 0%, transparent 70%); }
   .card > * { position:relative; z-index:1; }
-  .header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; }
+  .header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; z-index:20; }
   .title-block .title { font-size:1.25em; font-weight:800; background:linear-gradient(120deg,#7dd3fc,#818cf8,#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:0.5px; }
   .title-block .subtitle { font-size:0.68em; color:#3d5280; margin-top:1px; letter-spacing:0.3px; }
   .price-pill { background:rgba(96,165,250,0.1); border:1px solid rgba(96,165,250,0.25); border-radius:20px; padding:5px 14px; text-align:center; min-width:80px; }
@@ -627,7 +642,7 @@ const CSS = `
   /* ── SHARE BUTTON & STATS POPUP ── */
   .share-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:default; font-size:0.78em; color:#60a5fa; transition:background 0.2s,border-color 0.2s; flex-shrink:0; position:relative; }
   .share-btn:hover { background:rgba(96,165,250,0.16); border-color:rgba(96,165,250,0.4); }
-  .stats-popup { position:absolute; top:calc(100% + 8px); right:0; min-width:230px; background:rgba(15,23,42,0.97); border:1px solid rgba(96,165,250,0.25); border-radius:12px; padding:12px 14px; box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:100; opacity:0; pointer-events:none; transition:opacity 0.18s,transform 0.18s; transform:translateY(-4px); }
+  .stats-popup { position:absolute; top:calc(100% + 8px); right:0; min-width:230px; background:rgba(15,23,42,0.97); border:1px solid rgba(96,165,250,0.25); border-radius:12px; padding:12px 14px; box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:9999; opacity:0; pointer-events:none; transition:opacity 0.18s,transform 0.18s; transform:translateY(-4px); }
   .stats-popup.show { opacity:1; pointer-events:auto; transform:translateY(0); }
   .stats-popup pre { margin:0; font-family:monospace; font-size:0.72em; color:#cbd5e1; line-height:1.6; white-space:pre; }
   .stats-popup-copy { margin-top:9px; width:100%; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.25); border-radius:6px; color:#60a5fa; font-size:0.72em; padding:4px 0; cursor:pointer; transition:background 0.15s; }
@@ -685,6 +700,7 @@ class SmoothEnergyCard extends HTMLElement {
       battery_power: '',
       battery_soc: '',
       language: 'auto',   // 'auto' | 'en' | 'fr' | 'es' | 'zh' | 'ja'
+      grid_demand_threshold: 3000,  // W — show demand alert above this
       devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
@@ -835,7 +851,22 @@ class SmoothEnergyCard extends HTMLElement {
     card.innerHTML = d ? this._buildCard(d) : `<div style="padding:30px;text-align:center;color:#3d5280;font-size:0.85em">Connecting to Home Assistant…</div>`;
     shadow.appendChild(card);
     if (d) {
-      this.setAttribute('theme', this._config.theme || 'dark');
+      const rawTheme = this._config.theme || 'dark';
+      const resolvedTheme = rawTheme === 'auto'
+        ? (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : rawTheme;
+      this.setAttribute('theme', resolvedTheme);
+      // React to system colour-scheme changes when theme is 'auto'
+      if (rawTheme === 'auto') {
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        if (!this._mqlListener) {
+          this._mqlListener = e => this.setAttribute('theme', e.matches ? 'dark' : 'light');
+          mql.addEventListener('change', this._mqlListener);
+        }
+      } else if (this._mqlListener) {
+        window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', this._mqlListener);
+        this._mqlListener = null;
+      }
       this._clearParticles();
       this._startParticles(shadow, d);
       // Draw cable after layout is painted
@@ -889,6 +920,10 @@ class SmoothEnergyCard extends HTMLElement {
     // Charging recommendation
     const recoEl = card.querySelector('[data-uid="charging-reco"]');
     if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+
+    // Grid demand + peak shaving alerts
+    const gridAlertsEl = card.querySelector('[data-uid="grid-alerts"]');
+    if (gridAlertsEl) gridAlertsEl.innerHTML = this._buildGridAlerts(d);
 
     // EV section — update in-place to preserve running CSS animations
     this._patchEvGrid(card, d);
@@ -1122,6 +1157,25 @@ class SmoothEnergyCard extends HTMLElement {
     return `<div class="charging-reco ${reco.cls}"><span class="reco-icon">${reco.icon}</span><span class="reco-text">${reco.text}</span></div>`;
   }
 
+  _buildGridAlerts(d) {
+    const c = this._config;
+    const threshold = parseFloat(c.grid_demand_threshold) || 3000;
+    const alerts = [];
+    // #10 — Demand response: high grid import
+    if (d.gridImpW > threshold) {
+      alerts.push(`<div class="charging-reco reco-warn"><span class="reco-icon">🔌</span><span class="reco-text">${this._t('demand_high', fmtW(d.gridImpW))}</span></div>`);
+    }
+    // #11 — Peak shaving: high import AND battery can help
+    if (d.gridImpW > threshold && d.hasBattery && d.battSoc != null && d.battSoc > 20 && !d.battDischarging) {
+      alerts.push(`<div class="charging-reco reco-info"><span class="reco-icon">🔋</span><span class="reco-text">${this._t('peak_shave', fmtW(Math.min(d.gridImpW, Math.abs(d.battW)||500)))}</span></div>`);
+    }
+    // #11 — Peak shaving via solar surplus
+    if (d.gridImpW > 500 && d.surplusW > 500) {
+      alerts.push(`<div class="charging-reco reco-good"><span class="reco-icon">☀️</span><span class="reco-text">${this._t('peak_shave_solar', fmtW(d.surplusW))}</span></div>`);
+    }
+    return alerts.join('');
+  }
+
   _buildSufficiencyGauge(d) {
     if (d.solarW <= 0 && d.daySuffPct == null) return '';
 
@@ -1198,6 +1252,7 @@ class SmoothEnergyCard extends HTMLElement {
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
+      <div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>
       <div class="ev-section">
         <div class="section-title">${this._t('ev_section')}</div>
         <div class="ev-grid" data-uid="ev-grid">
@@ -2021,6 +2076,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <select data-key="theme">
                   <option value="dark"${(c.theme||'dark')==='dark'?' selected':''}>🌙 Dark</option>
                   <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
+                  <option value="auto"${c.theme==='auto'?' selected':''}>🖥️ Auto (system)</option>
                 </select>
               </div>
             </div>
@@ -2040,6 +2096,20 @@ class SmoothEnergyCardEditor extends HTMLElement {
               <div class="field">
                 <label>Battery SoC (%)</label>
                 <ha-entity-picker data-key="battery_soc" allow-custom-entity></ha-entity-picker>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GRID ALERTS -->
+        <div class="section">
+          <div class="section-head"><h3>🔔 Grid &amp; Peak Alerts</h3></div>
+          <div class="section-body">
+            <div class="row cols-1">
+              <div class="field">
+                <label>Grid demand alert threshold (W)</label>
+                <input type="number" data-key="grid_demand_threshold" value="${c.grid_demand_threshold ?? 3000}" step="100" min="0" placeholder="3000">
+                <span class="hint">Show high-demand warning above this import wattage. 0 = disabled.</span>
               </div>
             </div>
           </div>
