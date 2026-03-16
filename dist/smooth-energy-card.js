@@ -1903,6 +1903,9 @@ class SmoothEnergyCard extends HTMLElement {
           <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.9"/>
           <stop offset="100%" stop-color="#f97316" stop-opacity="0.6"/>
         </linearGradient>
+        <clipPath id="clip-sol"><circle cx="${sP.x}" cy="${sP.y}" r="${R-2}"/></clipPath>
+        <clipPath id="clip-house"><circle cx="${hP.x}" cy="${hP.y}" r="${R-2}"/></clipPath>
+        <clipPath id="clip-grid"><circle cx="${gP.x}" cy="${gP.y}" r="${R-2}"/></clipPath>
         <linearGradient id="trk-sol" x1="${sP.x}" y1="${sP.y}" x2="${hP.x}" y2="${hP.y}" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#60a5fa"/>
         </linearGradient>
@@ -1957,20 +1960,23 @@ class SmoothEnergyCard extends HTMLElement {
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':sun===null?'0.15':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':sun===null?'#c7d2fe':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):sun===null?'🌙':'☀️'}</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
-      <text x="${sP.x}" y="${sP.y+22}" class="n-name">${this._t('solar')}</text>
+      <text x="${sP.x}" y="${sP.y+20}" class="n-name">${this._t('solar')}</text>
+      <g data-uid="orb-spark-solar" clip-path="url(#clip-sol)" opacity="0.55"></g>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
       <text x="${hP.x}" y="${hP.y+7}" class="n-power">${fmtW(d.houseW)}</text>
-      <text x="${hP.x}" y="${hP.y+22}" class="n-name">${this._t('house')}</text>
+      <text x="${hP.x}" y="${hP.y+20}" class="n-name">${this._t('house')}</text>
+      <g data-uid="orb-spark-house" clip-path="url(#clip-house)" opacity="0.55"></g>
       ${d.gridImpW>2000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+4}" class="grid-stress-ring"/>`:d.gridImpW>1000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+3}" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.4"/>`:''}
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
       <text x="${gP.x}" y="${gP.y+7}" class="n-power">${fmtW(Math.abs(d.gridW))}</text>
-      <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?this._t('export'):this._t('import')}</text>
+      <text x="${gP.x}" y="${gP.y+20}" class="n-name">${d.isExp?this._t('export'):this._t('import')}</text>
+      <g data-uid="orb-spark-grid" clip-path="url(#clip-grid)" opacity="0.55"></g>
       ${hasV2c ? `
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
       <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
@@ -2508,6 +2514,35 @@ class SmoothEnergyCard extends HTMLElement {
       if (!el || !entity || !this._sparkData[entity]) return;
       el.innerHTML = this._buildSparkSvg(this._sparkData[entity], color);
     });
+    // #5 Mini orb sparklines
+    const orbMap = [
+      { uid:'orb-spark-solar', entity: c.solar_power, color:'#fbbf24', cx:58,  cy:62  },
+      { uid:'orb-spark-house', entity: c.house_power,  color:'#93c5fd', cx:180, cy:105 },
+      { uid:'orb-spark-grid',  entity: c.grid_power,  color:'#f87171', cx:302, cy:62  },
+    ];
+    orbMap.forEach(({ uid, entity, color, cx, cy }) => {
+      const el = shadow.querySelector(`[data-uid="${uid}"]`);
+      if (!el || !entity || !this._sparkData[entity]) return;
+      const pts = this._sparkData[entity];
+      el.innerHTML = this._buildOrbSparkPath(pts, color, cx, cy);
+    });
+  }
+
+  _buildOrbSparkPath(pts, color, cx, cy) {
+    if (!pts || pts.length < 2) return '';
+    const W = 52, H = 13, x0 = cx - W/2, y0 = cy + 25;
+    const min = Math.min(0, ...pts), max = Math.max(...pts) || 1;
+    const range = max - min || 1;
+    const coords = pts.map((v, i) => {
+      const x = (x0 + (i / (pts.length - 1)) * W).toFixed(1);
+      const y = (y0 + H - ((v - min) / range) * H).toFixed(1);
+      return `${x},${y}`;
+    }).join(' ');
+    // Filled area under sparkline
+    const first = `${x0.toFixed(1)},${(y0+H).toFixed(1)}`;
+    const last  = `${(x0+W).toFixed(1)},${(y0+H).toFixed(1)}`;
+    return `<polygon points="${first} ${coords} ${last}" fill="${color}" opacity="0.12"/>
+            <polyline points="${coords}" fill="none" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>`;
   }
 
   _buildSparkSvg(pts, color, W = 60, H = 18) {
