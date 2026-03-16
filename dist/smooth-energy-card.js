@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.1
+ * Smooth Energy Card v1.7.2
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.6.0
  */
 
-const VERSION = '1.7.1';
+const VERSION = '1.7.2';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -45,6 +45,13 @@ const TRANSLATIONS = {
     batt_health: pct => `Battery health ~${pct}%`,
     load_profile: lbl => `Load: ${lbl}`,
     load_efficient:'efficient', load_moderate:'moderate', load_heavy:'heavy',
+    ev_opt_solar:'☀️ Free solar charging available — start now',
+    ev_opt_cheap: p => `Low tariff (${p}) — good time to charge`,
+    ev_opt_wait:'⏳ High tariff — wait for cheaper rates',
+    dev_sched_solar:'☀️ Run heavy appliances now — free solar available',
+    dev_sched_cheap: p => `Run heavy appliances now — low tariff (${p})`,
+    dev_sched_wait:'⏳ Delay heavy appliances — tariff is high',
+    weather_lbl:'Weather',
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -81,6 +88,13 @@ const TRANSLATIONS = {
     batt_health: pct => `Santé batterie ~${pct}%`,
     load_profile: lbl => `Charge: ${lbl}`,
     load_efficient:'efficace', load_moderate:'modérée', load_heavy:'élevée',
+    ev_opt_solar:'☀️ Charge solaire gratuite disponible — lancez maintenant',
+    ev_opt_cheap: p => `Tarif bas (${p}) — bon moment pour charger`,
+    ev_opt_wait:'⏳ Tarif élevé — attendre un meilleur moment',
+    dev_sched_solar:'☀️ Lancez vos appareils gourmands — solaire gratuit disponible',
+    dev_sched_cheap: p => `Lancez vos appareils maintenant — tarif bas (${p})`,
+    dev_sched_wait:'⏳ Différez les appareils gourmands — tarif élevé',
+    weather_lbl:'Météo',
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -117,6 +131,13 @@ const TRANSLATIONS = {
     batt_health: pct => `Salud batería ~${pct}%`,
     load_profile: lbl => `Carga: ${lbl}`,
     load_efficient:'eficiente', load_moderate:'moderada', load_heavy:'alta',
+    ev_opt_solar:'☀️ Carga solar gratuita disponible — empieza ahora',
+    ev_opt_cheap: p => `Tarifa baja (${p}) — buen momento para cargar`,
+    ev_opt_wait:'⏳ Tarifa alta — esperar mejores tarifas',
+    dev_sched_solar:'☀️ Usa electrodomésticos pesados ahora — solar gratis disponible',
+    dev_sched_cheap: p => `Usa electrodomésticos ahora — tarifa baja (${p})`,
+    dev_sched_wait:'⏳ Retrasa electrodomésticos pesados — tarifa alta',
+    weather_lbl:'Tiempo',
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -153,6 +174,13 @@ const TRANSLATIONS = {
     batt_health: pct => `电池健康 ~${pct}%`,
     load_profile: lbl => `负荷: ${lbl}`,
     load_efficient:'高效', load_moderate:'适中', load_heavy:'偏高',
+    ev_opt_solar:'☀️ 免费太阳能充电可用 — 立即开始',
+    ev_opt_cheap: p => `低电价 (${p}) — 适合充电`,
+    ev_opt_wait:'⏳ 电价高 — 等待低价时段',
+    dev_sched_solar:'☀️ 现在启动大功率设备 — 免费太阳能可用',
+    dev_sched_cheap: p => `现在启动大功率设备 — 低电价 (${p})`,
+    dev_sched_wait:'⏳ 延迟大功率设备 — 当前电价高',
+    weather_lbl:'天气',
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -189,6 +217,13 @@ const TRANSLATIONS = {
     batt_health: pct => `蓄電池健康度 ~${pct}%`,
     load_profile: lbl => `負荷: ${lbl}`,
     load_efficient:'効率的', load_moderate:'普通', load_heavy:'高負荷',
+    ev_opt_solar:'☀️ 無料太陽光充電可能 — 今すぐ開始',
+    ev_opt_cheap: p => `低料金 (${p}) — 充電に最適`,
+    ev_opt_wait:'⏳ 料金高 — 安い時間帯まで待つ',
+    dev_sched_solar:'☀️ 今すぐ大型機器を使用 — 無料太陽光あり',
+    dev_sched_cheap: p => `今すぐ大型機器を使用 — 低料金 (${p})`,
+    dev_sched_wait:'⏳ 大型機器を遅らせる — 現在料金高',
+    weather_lbl:'天気',
   },
 };
 
@@ -275,6 +310,19 @@ function calcEta(hass, batterySoc, chargingPowerEntity, chargingRateEntity, targ
     if (powerKw > 0.1) return fmtEta(remaining / ((powerKw / capacityKwh) * 100));
   }
   return null;
+}
+
+function weatherIcon(condition) {
+  const c = (condition || '').toLowerCase();
+  if (c.includes('sunny') || c === 'clear-night' || c === 'clear') return '☀️';
+  if (c.includes('partly') || c.includes('cloudy-night')) return '⛅';
+  if (c.includes('cloud')) return '☁️';
+  if (c.includes('rain') || c.includes('shower') || c.includes('drizzle')) return '🌧️';
+  if (c.includes('snow') || c.includes('sleet') || c.includes('blizzard')) return '❄️';
+  if (c.includes('thunder') || c.includes('lightning') || c.includes('storm')) return '⛈️';
+  if (c.includes('wind') || c.includes('breez')) return '💨';
+  if (c.includes('fog') || c.includes('mist') || c.includes('haz')) return '🌫️';
+  return '🌤️';
 }
 
 function getChargingReco(d, c, t) {
@@ -732,6 +780,7 @@ class SmoothEnergyCard extends HTMLElement {
       grid_demand_threshold: 3000,  // W — show demand alert above this
       co2_intensity: '',            // g/kWh sensor or leave empty (uses 400 g/kWh default)
       battery_rated_capacity: 0,    // kWh — for health indicator (0 = disabled)
+      weather_entity: '',           // weather.xxx — shows icon in forecast row
       devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
@@ -886,6 +935,9 @@ class SmoothEnergyCard extends HTMLElement {
       liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
       v2gActive,
       co2SavedKg, battHealth, ratedKwh, loadLabel,
+      // #12 weather
+      weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
+      weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
     };
   }
 
@@ -974,6 +1026,12 @@ class SmoothEnergyCard extends HTMLElement {
     // Eco badges (CO₂, battery health, load profile)
     const ecoBadgesEl = card.querySelector('[data-uid="eco-badges"]');
     if (ecoBadgesEl) ecoBadgesEl.innerHTML = this._buildEcoBadges(d);
+
+    // EV optimizer + device scheduler
+    const evOptEl = card.querySelector('[data-uid="ev-optimizer"]');
+    if (evOptEl) evOptEl.innerHTML = this._buildEvOptimizer(d);
+    const devSchedEl = card.querySelector('[data-uid="dev-scheduler"]');
+    if (devSchedEl) devSchedEl.innerHTML = this._buildDevScheduler(d);
 
     // Grid demand + peak shaving alerts
     const gridAlertsEl = card.querySelector('[data-uid="grid-alerts"]');
@@ -1125,9 +1183,13 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _buildForecast(d) {
+    const weatherHtml = d.weatherCondition
+      ? `<div class="fc-item" style="margin-left:auto">${weatherIcon(d.weatherCondition)} ${d.weatherTemp != null ? Math.round(d.weatherTemp)+'°' : d.weatherCondition}</div>`
+      : '';
     return `
       <div class="fc-item"><div class="fc-dot" style="background:#fbbf24"></div><span>${this._t('fc_today')}: ${fmtKwh(d.fcToday)}</span></div>
-      <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>${this._t('fc_tomorrow')}: ${fmtKwh(d.fcTomorrow)}</span></div>`;
+      <div class="fc-item"><div class="fc-dot" style="background:#4a5f8a"></div><span>${this._t('fc_tomorrow')}: ${fmtKwh(d.fcTomorrow)}</span></div>
+      ${weatherHtml}`;
   }
 
   _buildTempoBanner(d) {
@@ -1248,6 +1310,37 @@ class SmoothEnergyCard extends HTMLElement {
     return alerts.join('');
   }
 
+  // #17 EV charging optimizer
+  _buildEvOptimizer(d) {
+    if (!this._config.evs || this._config.evs.length === 0) return '';
+    const anyEVNeedsCharge = d.evData.some(ev => ev.bat < (ev.targetSoc || 90));
+    if (!anyEVNeedsCharge) return '';
+    let msg = null;
+    if (d.surplusW > 1400) {
+      msg = { cls:'reco-free', text: this._t('ev_opt_solar') };
+    } else if (d.price != null && parseFloat(this._config.price_alert_low) && d.price <= parseFloat(this._config.price_alert_low)) {
+      msg = { cls:'reco-good', text: this._t('ev_opt_cheap', d.price.toFixed(3)+' €/kWh') };
+    } else if (d.price != null && parseFloat(this._config.price_alert_high) && d.price >= parseFloat(this._config.price_alert_high)) {
+      msg = { cls:'reco-warn', text: this._t('ev_opt_wait') };
+    }
+    if (!msg) return '';
+    return `<div class="charging-reco ${msg.cls}"><span class="reco-icon">🚗</span><span class="reco-text">${msg.text}</span></div>`;
+  }
+
+  // #22 Device scheduler
+  _buildDevScheduler(d) {
+    let msg = null;
+    if (d.surplusW > 1000) {
+      msg = { cls:'reco-free', text: this._t('dev_sched_solar') };
+    } else if (d.price != null && parseFloat(this._config.price_alert_low) && d.price <= parseFloat(this._config.price_alert_low)) {
+      msg = { cls:'reco-good', text: this._t('dev_sched_cheap', d.price.toFixed(3)+' €/kWh') };
+    } else if (d.price != null && parseFloat(this._config.price_alert_high) && d.price >= parseFloat(this._config.price_alert_high)) {
+      msg = { cls:'reco-warn', text: this._t('dev_sched_wait') };
+    }
+    if (!msg) return '';
+    return `<div class="charging-reco ${msg.cls}"><span class="reco-icon">🏠</span><span class="reco-text">${msg.text}</span></div>`;
+  }
+
   _buildSufficiencyGauge(d) {
     if (d.solarW <= 0 && d.daySuffPct == null) return '';
 
@@ -1325,6 +1418,8 @@ class SmoothEnergyCard extends HTMLElement {
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
       <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
+      <div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>
+      <div data-uid="dev-scheduler">${this._buildDevScheduler(d)}</div>
       <div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>
       <div class="ev-section">
         <div class="section-title">${this._t('ev_section')}</div>
@@ -2186,15 +2281,20 @@ class SmoothEnergyCardEditor extends HTMLElement {
           </div>
         </div>
 
-        <!-- GRID ALERTS -->
+        <!-- GRID ALERTS + SMART RECOMMENDATIONS -->
         <div class="section">
-          <div class="section-head"><h3>🔔 Grid &amp; Peak Alerts</h3></div>
+          <div class="section-head"><h3>🔔 Alerts &amp; Smart Recommendations</h3></div>
           <div class="section-body">
-            <div class="row cols-1">
+            <div class="row cols-2">
               <div class="field">
                 <label>Grid demand alert threshold (W)</label>
                 <input type="number" data-key="grid_demand_threshold" value="${c.grid_demand_threshold ?? 3000}" step="100" min="0" placeholder="3000">
-                <span class="hint">Show high-demand warning above this import wattage. 0 = disabled.</span>
+                <span class="hint">Demand/peak-shaving alerts above this import. 0 = off.</span>
+              </div>
+              <div class="field">
+                <label>Weather entity</label>
+                <ha-entity-picker data-key="weather_entity" allow-custom-entity></ha-entity-picker>
+                <span class="hint">Shows weather icon in forecast row.</span>
               </div>
             </div>
           </div>
