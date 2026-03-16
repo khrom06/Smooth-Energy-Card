@@ -492,6 +492,18 @@ const SVG_ICONS = {
 // ─── Card CSS ─────────────────────────────────────────────────────────────────
 const CSS = `
   :host { display: block; font-family: var(--paper-font-body1_-_font-family,'Roboto',sans-serif); }
+  :host(.fullscreen-mode) { position:fixed !important; top:0 !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:9999 !important; overflow-y:auto !important; }
+  :host(.fullscreen-mode) .card { border-radius:0 !important; min-height:100vh; }
+  .fullscreen-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:pointer; font-size:0.82em; color:#60a5fa; transition:background 0.2s; }
+  .fullscreen-btn:hover { background:rgba(96,165,250,0.18); }
+  .orb-detail-panel { position:absolute; left:8px; right:8px; top:8px; background:rgba(10,14,30,0.95); border:1px solid rgba(96,165,250,0.25); border-radius:12px; padding:12px 14px; z-index:20; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.5); animation:orb-detail-in 0.2s ease-out; }
+  @keyframes orb-detail-in { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+  .orb-detail-header { display:flex; justify-content:space-between; align-items:center; font-size:0.9em; font-weight:700; margin-bottom:6px; }
+  .orb-detail-close { background:none; border:none; color:#3d5280; cursor:pointer; font-size:1em; padding:0 2px; }
+  .orb-detail-close:hover { color:#60a5fa; }
+  .orb-detail-val { font-size:1.5em; font-weight:800; margin-bottom:6px; }
+  .orb-detail-spark { margin:4px 0; }
+  .orb-detail-stats { font-size:0.7em; color:#3d5280; margin-top:4px; }
   *, *::before, *::after { box-sizing: border-box; }
   .card {
     background: linear-gradient(160deg,#14192e 0%,#0c1020 60%,#111827 100%);
@@ -1775,10 +1787,13 @@ class SmoothEnergyCard extends HTMLElement {
               <button class="stats-popup-copy" data-uid="stats-copy">Copy to clipboard</button>
             </div>
           </div>
+          <button class="fullscreen-btn" data-action="fullscreen" title="Fullscreen">⛶</button>
         </div>
       </div>
       ${this._buildTempoBanner(d)}
-      <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}${this._buildWeatherPopup(d)}</div>
+      <div class="flow-wrap" data-uid="flow-wrap" style="position:relative">
+        <div class="orb-detail-panel" data-uid="orb-detail" hidden></div>
+        ${this._buildFlowSVG(d)}${this._buildWeatherPopup(d)}</div>
       <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats-tabs" data-uid="stats-tabs">
@@ -1962,7 +1977,7 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+20}" class="n-name">${this._t('solar')}</text>
       <g data-uid="orb-spark-solar" clip-path="url(#clip-sol)" opacity="0.55"></g>
-      <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5" data-uid="house-orb" style="cursor:pointer"/>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
@@ -1970,7 +1985,7 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${hP.x}" y="${hP.y+20}" class="n-name">${this._t('house')}</text>
       <g data-uid="orb-spark-house" clip-path="url(#clip-house)" opacity="0.55"></g>
       ${d.gridImpW>2000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+4}" class="grid-stress-ring"/>`:d.gridImpW>1000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+3}" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.4"/>`:''}
-      <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
+      <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5" data-uid="grid-orb" style="cursor:pointer"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
@@ -2392,6 +2407,58 @@ class SmoothEnergyCard extends HTMLElement {
         });
       });
     }
+    // #12 Fullscreen toggle
+    const fsBtn = shadow.querySelector('[data-action="fullscreen"]');
+    if (fsBtn) fsBtn.addEventListener('click', () => {
+      this.classList.toggle('fullscreen-mode');
+      fsBtn.textContent = this.classList.contains('fullscreen-mode') ? '✕' : '⛶';
+    });
+
+    // #9 Orb tap → detail panel
+    const c2 = this._config;
+    const orbMap = [
+      { uid:'solar-orb', entity:c2.solar_power, label:'☀️ Solar',  color:'#fbbf24' },
+      { uid:'house-orb', entity:c2.house_power, label:'🏠 House',  color:'#60a5fa' },
+      { uid:'grid-orb',  entity:c2.grid_power,  label:'⚡ Grid',   color:'#f87171' },
+    ];
+    orbMap.forEach(({ uid, entity, label, color }) => {
+      const orb = shadow.querySelector(`[data-uid="${uid}"]`);
+      if (!orb || !entity) return;
+      orb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const panel = shadow.querySelector('[data-uid="orb-detail"]');
+        if (!panel) return;
+        // If already showing this orb, hide it
+        if (!panel.hidden && panel.dataset.currentOrb === uid) { panel.hidden = true; return; }
+        panel.dataset.currentOrb = uid;
+        const pts = this._sparkData?.[entity] || [];
+        const state = this._hass?.states[entity];
+        const valRaw = state ? parseFloat(state.state) : null;
+        const unit = state?.attributes?.unit_of_measurement || 'W';
+        const valW = valRaw != null ? (unit === 'kW' ? valRaw * 1000 : valRaw) : null;
+        const minV = pts.length ? Math.min(...pts) : null;
+        const maxV = pts.length ? Math.max(...pts) : null;
+        const sparkHtml = pts.length >= 2 ? `<div style="margin:4px 0">${this._buildSparkSvg(pts, color, 200, 36)}</div>` : '';
+        const trend = (pts.length >= 2 && valW != null)
+          ? (valW > pts[0] ? '↑' : valW < pts[0] ? '↓' : '→') : '';
+        panel.innerHTML = `
+          <div class="orb-detail-header">
+            <span style="color:${color}">${label}</span>
+            <button class="orb-detail-close">✕</button>
+          </div>
+          <div class="orb-detail-val" style="color:${color}">${valW!=null?Math.round(valW)+' W':'—'} <span style="font-size:0.5em;opacity:0.6">${trend}</span></div>
+          ${sparkHtml}
+          <div class="orb-detail-stats">${minV!=null?'Min: '+Math.round(minV)+'W · Max: '+Math.round(maxV)+'W · 6h avg: '+Math.round(pts.reduce((a,v)=>a+v,0)/pts.length)+'W':''}</div>`;
+        panel.hidden = false;
+        panel.querySelector('.orb-detail-close')?.addEventListener('click', () => { panel.hidden = true; });
+      });
+    });
+    // Close panel when clicking outside
+    shadow.querySelector('.flow-wrap')?.addEventListener('click', (e) => {
+      const panel = shadow.querySelector('[data-uid="orb-detail"]');
+      if (panel && !panel.contains(e.target)) panel.hidden = true;
+    });
+
     // Solar orb weather popup
     const flowWrapEl = shadow.querySelector('[data-uid="flow-wrap"]');
     if (flowWrapEl) this._setupWeatherPopup(flowWrapEl);
