@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.1';
+const VERSION = '1.8.2';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -861,7 +861,8 @@ class SmoothEnergyCard extends HTMLElement {
       grid_demand_threshold: 3000,  // W — show demand alert above this
       co2_intensity: '',            // g/kWh sensor or leave empty (uses 400 g/kWh default)
       battery_rated_capacity: 0,    // kWh — for health indicator (0 = disabled)
-      weather_entity: '',           // weather.xxx — shows icon in forecast row
+      weather_entity: '',           // weather.xxx — shows current condition icon on solar orb
+      weather_forecast_entity: '',  // weather.xxx — used for hourly forecast popup (defaults to weather_entity)
       tariff_forecast: '',          // sensor with raw_today/prices array attribute
       chargers: [],                 // additional chargers: [{name, power, image, session_energy}]
       devices_sort: false,
@@ -890,7 +891,7 @@ class SmoothEnergyCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     // Subscribe to weather forecast (HA 2023.9+ moved forecast data out of attributes)
-    const we = this._config?.weather_entity;
+    const we = this._config?.weather_forecast_entity || this._config?.weather_entity;
     if (we && we !== this._weatherEntitySubscribed) {
       if (this._weatherUnsub) { try { this._weatherUnsub(); } catch(e) {} this._weatherUnsub = null; }
       this._weatherEntitySubscribed = we;
@@ -1050,7 +1051,7 @@ class SmoothEnergyCard extends HTMLElement {
       // #12 weather
       weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
       weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
-      weatherForecast: c.weather_entity ? (this._weatherForecastData || []) : [],
+      weatherForecast: (c.weather_forecast_entity || c.weather_entity) ? (this._weatherForecastData || []) : [],
       // #4 tariff forecast
       tariffPrices: parseTariffForecast(h, c.tariff_forecast),
       // #1 additional chargers
@@ -2397,6 +2398,27 @@ class SmoothEnergyCardEditor extends HTMLElement {
   set hass(h) {
     this._hass = h;
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(el => { el.hass = h; });
+    // ha-entity-picker (Lit element) may reset its value on first render if hass wasn't set yet.
+    // Re-apply all picker values once, the first time hass arrives after each _render() call.
+    if (!this._pickersInitialized) {
+      this._pickersInitialized = true;
+      const c = this._config;
+      this.shadowRoot.querySelectorAll('ha-entity-picker[data-key]').forEach(el => {
+        el.value = c[el.dataset.key] || '';
+      });
+      this.shadowRoot.querySelectorAll('ha-entity-picker[data-ev]').forEach(el => {
+        const idx = parseInt(el.dataset.ev), key = el.dataset.evKey;
+        el.value = ((c.evs || [])[idx] || {})[key] || '';
+      });
+      this.shadowRoot.querySelectorAll('ha-entity-picker[data-ch]').forEach(el => {
+        const idx = parseInt(el.dataset.ch), key = el.dataset.chKey;
+        el.value = ((c.chargers || [])[idx] || {})[key] || '';
+      });
+      this.shadowRoot.querySelectorAll('ha-entity-picker[data-dev]').forEach(el => {
+        const idx = parseInt(el.dataset.dev);
+        el.value = ((c.devices || [])[idx] || {}).entity || '';
+      });
+    }
   }
 
   _fire() {
@@ -2455,6 +2477,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
     const evs = c.evs || [];
     const devices = c.devices || [];
     const chargers = c.chargers || [];
+    this._pickersInitialized = false;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -2786,9 +2809,14 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <span class="hint">Demand/peak-shaving alerts above this import. 0 = off.</span>
               </div>
               <div class="field">
-                <label>Weather entity</label>
+                <label>Weather — current conditions</label>
                 <ha-entity-picker data-key="weather_entity" allow-custom-entity></ha-entity-picker>
-                <span class="hint">Shows weather icon in forecast row.</span>
+                <span class="hint">weather.* entity — shows condition icon on solar orb.</span>
+              </div>
+              <div class="field">
+                <label>Weather — forecast (optional)</label>
+                <ha-entity-picker data-key="weather_forecast_entity" allow-custom-entity></ha-entity-picker>
+                <span class="hint">weather.* entity for hourly forecast popup. Leave empty to use the same entity as above.</span>
               </div>
             </div>
             <div class="row cols-1">
