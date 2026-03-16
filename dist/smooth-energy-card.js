@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.2';
+const VERSION = '1.8.3';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -806,7 +806,33 @@ const CSS = `
   .weather-popup-row .wf-icon { width:18px; text-align:center; }
   .weather-popup-row .wf-temp { margin-left:auto; color:#fbbf24; font-weight:600; }
   .weather-popup-row .wf-rain { color:#60a5fa; font-size:0.85em; margin-left:4px; }
+
+  /* ── WOW #2: ENERGY DONUT ── */
+  .energy-donut-svg circle { transition:stroke-dasharray 1.1s cubic-bezier(0.4,0,0.2,1),stroke-dashoffset 1.1s cubic-bezier(0.4,0,0.2,1); }
+
+  /* ── WOW #3: IMMERSIVE MODE ── */
+  .immersive-btn { background:none; border:1px solid rgba(96,165,250,0.18); border-radius:6px; color:#3d5280; font-size:0.8em; padding:4px 7px; cursor:pointer; flex-shrink:0; transition:background 0.15s,color 0.15s; line-height:1; }
+  .immersive-btn:hover { background:rgba(96,165,250,0.12); color:#60a5fa; }
+  .card.sec-immersive { position:fixed !important; inset:0 !important; z-index:1000 !important; border-radius:0 !important; max-height:100vh !important; overflow-y:auto !important; margin:0 !important; width:100vw !important; box-sizing:border-box !important; }
+
+  /* ── WOW #7: CO₂ LIVE RATE ── */
+  .eco-co2-rate { font-size:0.78em; opacity:0.65; margin-left:3px; }
+  @keyframes co2-pop { 0%{transform:scale(1)} 40%{transform:scale(1.18)} 80%{transform:scale(0.96)} 100%{transform:scale(1)} }
+  .eco-co2.co2-pop { animation:co2-pop 0.45s ease-out; }
+
+  /* ── WOW #14: NODE DETAIL PANEL ── */
+  .node-panel { background:rgba(12,18,40,0.97); border:1px solid rgba(96,165,250,0.18); border-radius:14px; padding:14px 16px; margin-top:10px; display:none; }
+  .node-panel.show { display:block; animation:node-slide-up 0.22s ease-out; }
+  @keyframes node-slide-up { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .node-panel-head { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+  .node-panel-title { font-size:0.82em; font-weight:700; color:#94a3b8; letter-spacing:0.5px; text-transform:uppercase; }
+  .node-panel-val { font-size:1.55em; font-weight:800; margin-top:2px; }
+  .node-panel-entity { font-size:0.62em; color:#3d5280; margin-top:3px; font-family:monospace; }
+  .node-panel-close { background:none; border:none; color:#3d5280; font-size:1.1em; cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0; }
+  .node-panel-close:hover { color:#60a5fa; }
+  .node-panel-spark { margin-top:8px; opacity:0.85; }
 `;
+
 
 if (!document.getElementById('sec-anim-styles')) {
   const s = document.createElement('style');
@@ -1022,6 +1048,7 @@ class SmoothEnergyCard extends HTMLElement {
     const co2Intensity = c.co2_intensity ? numState(h, c.co2_intensity, null) : null;
     const co2GperKwh = co2Intensity != null ? co2Intensity : 400; // default 400 g/kWh EU avg
     const co2SavedKg = selfConsumedKwh != null ? Math.round((selfConsumedKwh * co2GperKwh) / 10) / 100 : null;
+    const co2RateGpm = Math.round(Math.min(solarW, houseW) * co2GperKwh / 3600000 * 60 * 10) / 10; // g/min currently
 
     // #16 Battery health
     const ratedKwh = parseFloat(c.battery_rated_capacity) || 0;
@@ -1047,7 +1074,7 @@ class SmoothEnergyCard extends HTMLElement {
       battW, battSoc, battCharging, battDischarging, hasBattery,
       liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
       v2gActive,
-      co2SavedKg, battHealth, ratedKwh, loadLabel,
+      co2SavedKg, co2RateGpm, battHealth, ratedKwh, loadLabel,
       // #12 weather
       weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
       weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
@@ -2397,24 +2424,27 @@ class SmoothEnergyCardEditor extends HTMLElement {
 
   set hass(h) {
     this._hass = h;
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(el => { el.hass = h; });
-    // ha-entity-picker (Lit element) may reset its value on first render if hass wasn't set yet.
-    // Re-apply all picker values once, the first time hass arrives after each _render() call.
+    // Set hass + selector on all ha-selector elements
+    this.shadowRoot.querySelectorAll('ha-selector').forEach(el => {
+      el.hass = h;
+      if (!el.selector) el.selector = { entity: {} };
+    });
+    // Re-apply values once after first hass arrives (ha-selector/Lit may reset value before first render)
     if (!this._pickersInitialized) {
       this._pickersInitialized = true;
       const c = this._config;
-      this.shadowRoot.querySelectorAll('ha-entity-picker[data-key]').forEach(el => {
+      this.shadowRoot.querySelectorAll('ha-selector[data-key]').forEach(el => {
         el.value = c[el.dataset.key] || '';
       });
-      this.shadowRoot.querySelectorAll('ha-entity-picker[data-ev]').forEach(el => {
+      this.shadowRoot.querySelectorAll('ha-selector[data-ev]').forEach(el => {
         const idx = parseInt(el.dataset.ev), key = el.dataset.evKey;
         el.value = ((c.evs || [])[idx] || {})[key] || '';
       });
-      this.shadowRoot.querySelectorAll('ha-entity-picker[data-ch]').forEach(el => {
+      this.shadowRoot.querySelectorAll('ha-selector[data-ch]').forEach(el => {
         const idx = parseInt(el.dataset.ch), key = el.dataset.chKey;
         el.value = ((c.chargers || [])[idx] || {})[key] || '';
       });
-      this.shadowRoot.querySelectorAll('ha-entity-picker[data-dev]').forEach(el => {
+      this.shadowRoot.querySelectorAll('ha-selector[data-dev]').forEach(el => {
         const idx = parseInt(el.dataset.dev);
         el.value = ((c.devices || [])[idx] || {}).entity || '';
       });
@@ -2524,7 +2554,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
           color: var(--secondary-text-color, #777);
           letter-spacing: 0.3px;
         }
-        ha-entity-picker { display: block; }
+        ha-selector { display: block; }
         input[type="text"], input[type="number"], select {
           width: 100%;
           border: 1px solid var(--divider-color, #ccc);
@@ -2627,29 +2657,29 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <div class="row cols-1">
               <div class="field">
                 <label>Solar Power</label>
-                <ha-entity-picker data-key="solar_power" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="solar_power"></ha-selector>
               </div>
             </div>
             <div class="row cols-1">
               <div class="field">
                 <label>Grid Power <span style="color:#f59e0b">(negative = exporting)</span></label>
-                <ha-entity-picker data-key="grid_power" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="grid_power"></ha-selector>
               </div>
             </div>
             <div class="row cols-2">
               <div class="field">
                 <label>House Consumption</label>
-                <ha-entity-picker data-key="house_power" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="house_power"></ha-selector>
               </div>
               <div class="field">
                 <label>V2C Charger Power</label>
-                <ha-entity-picker data-key="v2c_power" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="v2c_power"></ha-selector>
               </div>
             </div>
             <div class="row cols-1">
               <div class="field">
                 <label>Electricity Price (€/kWh)</label>
-                <ha-entity-picker data-key="kwh_price" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="kwh_price"></ha-selector>
               </div>
             </div>
           </div>
@@ -2662,21 +2692,21 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <div class="row cols-2">
               <div class="field">
                 <label>Solar Production Today</label>
-                <ha-entity-picker data-key="solar_today" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="solar_today"></ha-selector>
               </div>
               <div class="field">
                 <label>V2C Session Energy</label>
-                <ha-entity-picker data-key="v2c_session_energy" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="v2c_session_energy"></ha-selector>
               </div>
             </div>
             <div class="row cols-2">
               <div class="field">
                 <label>Forecast Today</label>
-                <ha-entity-picker data-key="solar_forecast_today" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="solar_forecast_today"></ha-selector>
               </div>
               <div class="field">
                 <label>Forecast Tomorrow</label>
-                <ha-entity-picker data-key="solar_forecast_tomorrow" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="solar_forecast_tomorrow"></ha-selector>
               </div>
             </div>
           </div>
@@ -2713,12 +2743,12 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <div class="row cols-2">
               <div class="field">
                 <label>Tempo color — Today</label>
-                <ha-entity-picker data-key="tempo_color_today" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="tempo_color_today"></ha-selector>
                 <span class="hint">State: "BLUE", "WHITE", "RED" (or French equivalents)</span>
               </div>
               <div class="field">
                 <label>Tempo color — Tomorrow</label>
-                <ha-entity-picker data-key="tempo_color_tomorrow" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="tempo_color_tomorrow"></ha-selector>
               </div>
             </div>
             <div class="row cols-2">
@@ -2743,11 +2773,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <div class="row cols-2">
               <div class="field">
                 <label>Grid Energy Imported Today (kWh)</label>
-                <ha-entity-picker data-key="grid_energy_import" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="grid_energy_import"></ha-selector>
               </div>
               <div class="field">
                 <label>Grid Energy Exported Today (kWh)</label>
-                <ha-entity-picker data-key="grid_energy_export" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="grid_energy_export"></ha-selector>
               </div>
             </div>
             <div class="row cols-2">
@@ -2775,12 +2805,12 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <div class="row cols-2">
               <div class="field">
                 <label>Battery Power (W or kW)</label>
-                <ha-entity-picker data-key="battery_power" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="battery_power"></ha-selector>
                 <span class="hint">Positive = charging, negative = discharging</span>
               </div>
               <div class="field">
                 <label>Battery SoC (%)</label>
-                <ha-entity-picker data-key="battery_soc" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="battery_soc"></ha-selector>
               </div>
             </div>
             <div class="row cols-2">
@@ -2791,7 +2821,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
               </div>
               <div class="field">
                 <label>Grid CO₂ intensity (g/kWh)</label>
-                <ha-entity-picker data-key="co2_intensity" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="co2_intensity"></ha-selector>
                 <span class="hint">Optional sensor. Default: 400 g/kWh.</span>
               </div>
             </div>
@@ -2810,19 +2840,19 @@ class SmoothEnergyCardEditor extends HTMLElement {
               </div>
               <div class="field">
                 <label>Weather — current conditions</label>
-                <ha-entity-picker data-key="weather_entity" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="weather_entity"></ha-selector>
                 <span class="hint">weather.* entity — shows condition icon on solar orb.</span>
               </div>
               <div class="field">
                 <label>Weather — forecast (optional)</label>
-                <ha-entity-picker data-key="weather_forecast_entity" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="weather_forecast_entity"></ha-selector>
                 <span class="hint">weather.* entity for hourly forecast popup. Leave empty to use the same entity as above.</span>
               </div>
             </div>
             <div class="row cols-1">
               <div class="field">
                 <label>Tariff forecast entity (optional)</label>
-                <ha-entity-picker data-key="tariff_forecast" allow-custom-entity></ha-entity-picker>
+                <ha-selector data-key="tariff_forecast"></ha-selector>
                 <span class="hint">Sensor with raw_today/prices array attribute — shows 12h bar chart.</span>
               </div>
             </div>
@@ -2876,34 +2906,34 @@ class SmoothEnergyCardEditor extends HTMLElement {
         <div class="row cols-2">
           <div class="field">
             <label>Battery %</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="battery" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="battery"></ha-selector>
           </div>
           <div class="field">
             <label>Range (km)</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="range" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="range"></ha-selector>
           </div>
         </div>
         <div class="row cols-2">
           <div class="field">
             <label>Charging State</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="charging" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="charging"></ha-selector>
             <span class="hint">binary_sensor — on = charging</span>
           </div>
           <div class="field">
             <label>Charging Power (kW)</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="charging_power" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="charging_power"></ha-selector>
             <span class="hint">For ETA calculation</span>
           </div>
         </div>
         <div class="row cols-2">
           <div class="field">
             <label>Charging Rate (%/h)</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="charging_rate" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="charging_rate"></ha-selector>
             <span class="hint">Alternative to kW for ETA</span>
           </div>
           <div class="field">
             <label>Target SoC</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="target_soc" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="target_soc"></ha-selector>
             <span class="hint">For ETA goal</span>
           </div>
         </div>
@@ -2915,7 +2945,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
           </div>
           <div class="field">
             <label>Battery Health sensor (%)</label>
-            <ha-entity-picker data-ev="${i}" data-ev-key="battery_health" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ev="${i}" data-ev-key="battery_health"></ha-selector>
             <span class="hint">Optional — shows health badge</span>
           </div>
         </div>
@@ -2954,11 +2984,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
         <div class="row cols-2">
           <div class="field">
             <label>Power sensor (W or kW)</label>
-            <ha-entity-picker data-ch="${i}" data-ch-key="power" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ch="${i}" data-ch-key="power"></ha-selector>
           </div>
           <div class="field">
             <label>Session energy sensor (kWh)</label>
-            <ha-entity-picker data-ch="${i}" data-ch-key="session_energy" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-ch="${i}" data-ch-key="session_energy"></ha-selector>
           </div>
         </div>
       </div>`;
@@ -2987,7 +3017,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
         <div class="row cols-1">
           <div class="field">
             <label>Power Sensor</label>
-            <ha-entity-picker data-dev="${i}" data-dev-key="entity" allow-custom-entity></ha-entity-picker>
+            <ha-selector data-dev="${i}" data-dev-key="entity"></ha-selector>
           </div>
         </div>
         <div class="row cols-2">
@@ -3004,9 +3034,10 @@ class SmoothEnergyCardEditor extends HTMLElement {
     const sr = this.shadowRoot;
     const c = this._config;
 
-    // Top-level entity pickers
-    sr.querySelectorAll('ha-entity-picker[data-key]').forEach(el => {
+    // Top-level entity selectors
+    sr.querySelectorAll('ha-selector[data-key]').forEach(el => {
       if (this._hass) el.hass = this._hass;
+      el.selector = { entity: {} };
       el.value = c[el.dataset.key] || '';
       el.addEventListener('value-changed', e => {
         this._set(el.dataset.key, e.detail.value);
@@ -3024,10 +3055,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
       });
     });
 
-    // EV entity pickers
-    sr.querySelectorAll('ha-entity-picker[data-ev]').forEach(el => {
+    // EV entity selectors
+    sr.querySelectorAll('ha-selector[data-ev]').forEach(el => {
       const idx = parseInt(el.dataset.ev), key = el.dataset.evKey;
       if (this._hass) el.hass = this._hass;
+      el.selector = { entity: {} };
       el.value = ((c.evs || [])[idx] || {})[key] || '';
       el.addEventListener('value-changed', e => { this._setEv(idx, key, e.detail.value); });
     });
@@ -3038,10 +3070,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
       el.addEventListener('change', () => { this._setEv(idx, key, el.type === 'number' ? parseFloat(el.value) : el.value); });
     });
 
-    // Charger entity pickers
-    sr.querySelectorAll('ha-entity-picker[data-ch]').forEach(el => {
+    // Charger entity selectors
+    sr.querySelectorAll('ha-selector[data-ch]').forEach(el => {
       const idx = parseInt(el.dataset.ch), key = el.dataset.chKey;
       if (this._hass) el.hass = this._hass;
+      el.selector = { entity: {} };
       el.value = ((c.chargers || [])[idx] || {})[key] || '';
       el.addEventListener('value-changed', e => { this._setCharger(idx, key, e.detail.value); });
     });
@@ -3052,10 +3085,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
       el.addEventListener('change', () => { this._setCharger(idx, key, el.value); });
     });
 
-    // Device entity pickers
-    sr.querySelectorAll('ha-entity-picker[data-dev]').forEach(el => {
+    // Device entity selectors
+    sr.querySelectorAll('ha-selector[data-dev]').forEach(el => {
       const idx = parseInt(el.dataset.dev);
       if (this._hass) el.hass = this._hass;
+      el.selector = { entity: {} };
       el.value = ((c.devices || [])[idx] || {}).entity || '';
       el.addEventListener('value-changed', e => { this._setDevice(idx, 'entity', e.detail.value); });
     });
