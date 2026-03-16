@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -889,6 +889,20 @@ class SmoothEnergyCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Subscribe to weather forecast (HA 2023.9+ moved forecast data out of attributes)
+    const we = this._config?.weather_entity;
+    if (we && we !== this._weatherEntitySubscribed) {
+      if (this._weatherUnsub) { try { this._weatherUnsub(); } catch(e) {} this._weatherUnsub = null; }
+      this._weatherEntitySubscribed = we;
+      hass.connection.subscribeMessage(
+        (msg) => { this._weatherForecastData = msg.forecast || []; },
+        { type: 'weather/subscribe_forecast', entity_id: we, forecast_type: 'hourly' }
+      ).then(unsub => { this._weatherUnsub = unsub; }).catch(() => {});
+    } else if (!we && this._weatherUnsub) {
+      try { this._weatherUnsub(); } catch(e) {}
+      this._weatherUnsub = null;
+      this._weatherEntitySubscribed = null;
+    }
     if (!this._domReady) {
       this._render();
     } else {
@@ -904,7 +918,10 @@ class SmoothEnergyCard extends HTMLElement {
   }
   getCardSize() { return 8; }
   _t(key, ...args) { return tr(this._hass, this._config, key, ...args); }
-  disconnectedCallback() { this._clearParticles(); }
+  disconnectedCallback() {
+    this._clearParticles();
+    if (this._weatherUnsub) { try { this._weatherUnsub(); } catch(e) {} this._weatherUnsub = null; }
+  }
 
   _data() {
     const h = this._hass, c = this._config;
@@ -1033,7 +1050,7 @@ class SmoothEnergyCard extends HTMLElement {
       // #12 weather
       weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
       weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
-      weatherForecast: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.forecast || []) : [],
+      weatherForecast: c.weather_entity ? (this._weatherForecastData || []) : [],
       // #4 tariff forecast
       tariffPrices: parseTariffForecast(h, c.tariff_forecast),
       // #1 additional chargers
@@ -1822,7 +1839,7 @@ class SmoothEnergyCard extends HTMLElement {
         : (vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
       }
       <g id="particles"></g>
-      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" style="cursor:${d.weatherForecast&&d.weatherForecast.length?'pointer':'default'}"/>
+      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):'☀️'}</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
