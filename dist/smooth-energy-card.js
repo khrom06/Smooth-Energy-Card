@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.3
+ * Smooth Energy Card v1.7.4
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.6.0
  */
 
-const VERSION = '1.7.3';
+const VERSION = '1.7.4';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -310,6 +310,28 @@ function calcEta(hass, batterySoc, chargingPowerEntity, chargingRateEntity, targ
     if (powerKw > 0.1) return fmtEta(remaining / ((powerKw / capacityKwh) * 100));
   }
   return null;
+}
+
+function parseTariffForecast(hass, entity) {
+  if (!entity) return [];
+  const s = haState(hass, entity);
+  if (!s) return [];
+  const a = s.attributes;
+  let raw = a.raw_today || a.prices || a.today || a.forecast || a.forecasts || [];
+  if (typeof raw === 'object' && !Array.isArray(raw)) raw = Object.values(raw);
+  if (!Array.isArray(raw) || raw.length === 0) {
+    // Try state itself as comma-separated
+    const fromState = parseFloat(s.state);
+    return isNaN(fromState) ? [] : [fromState];
+  }
+  return raw.slice(0, 24).map(p => {
+    if (typeof p === 'number') return p;
+    if (typeof p === 'object' && p !== null) {
+      const v = p.value ?? p.price ?? p.total ?? p.spotPrice ?? p.importPrice ?? 0;
+      return typeof v === 'number' ? v : parseFloat(v) || 0;
+    }
+    return parseFloat(p) || 0;
+  });
 }
 
 function weatherIcon(condition) {
@@ -651,6 +673,18 @@ const CSS = `
   .price-pill.alert-low .val { color:#34d399; }
   @keyframes price-blink { from{opacity:1} to{opacity:0.45} }
 
+  /* ── PRICE FORECAST CHART ── */
+  .price-chart { margin-bottom:10px; }
+  .price-chart-title { font-size:0.62em; font-weight:700; color:#3d5280; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4px; }
+  .price-chart svg { display:block; width:100%; border-radius:6px; overflow:visible; }
+
+  /* ── HISTORY MODAL ── */
+  .history-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; }
+  .history-modal { background:rgba(15,23,42,0.98); border:1px solid rgba(96,165,250,0.2); border-radius:16px; padding:20px; min-width:300px; max-width:94vw; box-shadow:0 16px 48px rgba(0,0,0,0.6); color:#cbd5e1; }
+  .history-modal-title { font-size:0.85em; font-weight:800; color:#60a5fa; margin-bottom:14px; }
+  .history-modal-close { float:right; background:none; border:none; color:#60a5fa; font-size:1.1em; cursor:pointer; }
+  .history-modal svg { display:block; width:100%; }
+
   /* ── ECO BADGES ROW ── */
   .eco-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
   .eco-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:0.72em; font-weight:700; border:1px solid; white-space:nowrap; }
@@ -792,6 +826,8 @@ class SmoothEnergyCard extends HTMLElement {
       co2_intensity: '',            // g/kWh sensor or leave empty (uses 400 g/kWh default)
       battery_rated_capacity: 0,    // kWh — for health indicator (0 = disabled)
       weather_entity: '',           // weather.xxx — shows icon in forecast row
+      tariff_forecast: '',          // sensor with raw_today/prices array attribute
+      chargers: [],                 // additional chargers: [{name, power, image, session_energy}]
       devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
@@ -949,6 +985,15 @@ class SmoothEnergyCard extends HTMLElement {
       // #12 weather
       weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
       weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
+      weatherForecast: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.forecast || []) : [],
+      // #4 tariff forecast
+      tariffPrices: parseTariffForecast(h, c.tariff_forecast),
+      // #1 additional chargers
+      extraChargers: (c.chargers || []).map(ch => ({
+        ...ch,
+        w: ch.power ? toWatts(h, ch.power) : 0,
+        sessionKwh: ch.session_energy ? numState(h, ch.session_energy, null) : null,
+      })),
     };
   }
 
@@ -1035,6 +1080,10 @@ class SmoothEnergyCard extends HTMLElement {
     // Charging recommendation
     const recoEl = card.querySelector('[data-uid="charging-reco"]');
     if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+
+    // Price chart
+    const priceChartEl = card.querySelector('[data-uid="price-chart"]');
+    if (priceChartEl) priceChartEl.innerHTML = this._buildPriceChart(d);
 
     // Eco badges (CO₂, battery health, load profile)
     const ecoBadgesEl = card.querySelector('[data-uid="eco-badges"]');
@@ -1323,6 +1372,102 @@ class SmoothEnergyCard extends HTMLElement {
     return alerts.join('');
   }
 
+  // #1 Extra charger tile
+  _buildExtraCharger(ch, idx) {
+    const active = Math.abs(ch.w) > 10;
+    const imgEl = ch.image ? `<img src="${ch.image}" class="ev-img" style="height:48px;object-fit:contain;margin:4px 0" loading="lazy">` : '⚡';
+    const costLine = ch.sessionKwh != null && ch.sessionKwh > 0 ? `<div class="charger-sub">${fmtKwh(ch.sessionKwh)}</div>` : '';
+    return `<div class="ev-card ev-charger${active?' plugged':''}" data-extra-charger="${idx}">
+      <div class="ev-name">${ch.name || 'Charger'}</div>
+      ${imgEl}
+      ${active
+        ? `<div class="charger-power">${fmtW(ch.w)}</div><div class="charger-sub">${this._t('charging')}</div>${costLine}`
+        : `<div class="charger-idle">${this._t('charger_idle')}</div>`}
+    </div>`;
+  }
+
+  // #4 Tariff price forecast chart
+  _buildPriceChart(d) {
+    const prices = d.tariffPrices;
+    if (!prices || prices.length < 2) return '';
+    const nowH = new Date().getHours();
+    const upcoming = [...prices.slice(nowH), ...prices.slice(0, nowH)].slice(0, 12);
+    if (upcoming.length < 2) return '';
+    const W = 340, H = 36, barW = Math.floor(W / upcoming.length) - 1;
+    const maxP = Math.max(...upcoming) || 1;
+    const bars = upcoming.map((p, i) => {
+      const barH = Math.max(3, Math.round((p / maxP) * H));
+      const x = i * (barW + 1);
+      const y = H - barH;
+      const isNow = i === 0;
+      const col = p > maxP * 0.75 ? '#f87171' : p < maxP * 0.35 ? '#34d399' : '#60a5fa';
+      return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="${isNow?1:0.65}"/>
+        ${isNow ? `<rect x="${x}" y="${y-2}" width="${barW}" height="2" rx="1" fill="${col}"/>` : ''}`;
+    }).join('');
+    const labels = upcoming.map((p, i) => {
+      const h = (nowH + i) % 24;
+      if (i % 3 !== 0) return '';
+      return `<text x="${i*(barW+1)+barW/2}" y="${H+9}" text-anchor="middle" font-size="7" fill="#3d5280">${h}h</text>`;
+    }).join('');
+    return `<div class="price-chart">
+      <div class="price-chart-title">⚡ Tariff next 12h</div>
+      <svg viewBox="0 0 ${W} ${H+12}" height="${H+12}">
+        ${bars}${labels}
+      </svg>
+    </div>`;
+  }
+
+  // #2 History modal — 7-day bar chart (async, called via tap)
+  async _showHistoryModal() {
+    const h = this._hass, c = this._config;
+    if (!h || !c.solar_today) return;
+    const shadow = this.shadowRoot;
+    // Show loading backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'history-modal-backdrop';
+    backdrop.innerHTML = `<div class="history-modal"><button class="history-modal-close">✕</button><div class="history-modal-title">📅 7-Day Solar History</div><div>Loading…</div></div>`;
+    shadow.appendChild(backdrop);
+    backdrop.querySelector('.history-modal-close').addEventListener('click', () => backdrop.remove());
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+    try {
+      const end = new Date();
+      const start = new Date(end - 7 * 86400000);
+      const raw = await h.callApi('GET',
+        `history/period/${start.toISOString()}?filter_entity_id=${c.solar_today}&minimal_response=true&no_attributes=true&end_time=${end.toISOString()}`
+      );
+      if (!Array.isArray(raw) || !raw[0]) { backdrop.querySelector('div div').textContent = 'No data available'; return; }
+      const series = raw[0];
+      // Group by day — last reading per day
+      const days = {};
+      series.forEach(s => {
+        if (s.state === 'unavailable' || s.state === 'unknown') return;
+        const day = s.last_changed.substring(0, 10);
+        days[day] = parseFloat(s.state) || 0;
+      });
+      const dayKeys = Object.keys(days).sort().slice(-7);
+      const vals = dayKeys.map(k => days[k]);
+      if (!vals.length) { backdrop.querySelector('.history-modal div').textContent = 'Insufficient history'; return; }
+      const maxV = Math.max(...vals) || 1;
+      const W2 = 300, H2 = 80, bW = Math.floor(W2 / vals.length) - 4;
+      const barsHtml = vals.map((v, i) => {
+        const bH = Math.max(3, Math.round((v / maxV) * H2));
+        const x = i * (bW + 4);
+        const y = H2 - bH;
+        const label = dayKeys[i].substring(5); // MM-DD
+        return `<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="#fbbf24" opacity="0.8"/>
+          <text x="${x+bW/2}" y="${H2+10}" text-anchor="middle" font-size="8" fill="#94a3b8">${label}</text>
+          <text x="${x+bW/2}" y="${y-3}" text-anchor="middle" font-size="8" fill="#fbbf24">${round1(v)}</text>`;
+      }).join('');
+      backdrop.querySelector('.history-modal').innerHTML = `
+        <button class="history-modal-close">✕</button>
+        <div class="history-modal-title">📅 7-Day Solar · kWh/day</div>
+        <svg viewBox="0 0 ${W2} ${H2+16}" height="${H2+16}">${barsHtml}</svg>`;
+      backdrop.querySelector('.history-modal-close').addEventListener('click', () => backdrop.remove());
+    } catch(e) {
+      backdrop.querySelector('div div').textContent = 'History API unavailable';
+    }
+  }
+
   // #17 EV charging optimizer
   _buildEvOptimizer(d) {
     if (!this._config.evs || this._config.evs.length === 0) return '';
@@ -1438,6 +1583,7 @@ class SmoothEnergyCard extends HTMLElement {
         <div data-uid="daily-summary-tab">${this._buildDailySummary(d)}</div>
       </div>
       <div data-uid="daily-summary" style="display:none"></div>
+      <div data-uid="price-chart">${this._buildPriceChart(d)}</div>
       <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
       <div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>
@@ -1447,6 +1593,7 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="section-title">${this._t('ev_section')}</div>
         <div class="ev-grid" data-uid="ev-grid">
           ${this._buildCharger(d)}
+          ${d.extraChargers.map((ch, i) => this._buildExtraCharger(ch, i)).join('')}
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
       </div>
@@ -1862,6 +2009,18 @@ class SmoothEnergyCard extends HTMLElement {
       const entity = ev && (ev.battery || ev.range);
       if (entity) card.addEventListener('click', () => this._moreInfo(entity));
     });
+    // History modal — tap daily summary section title
+    const dailySummarySection = shadow.querySelector('[data-uid="daily-summary-tab"]');
+    if (dailySummarySection) {
+      dailySummarySection.style.cursor = 'pointer';
+      dailySummarySection.addEventListener('click', () => this._showHistoryModal());
+    }
+    // Extra charger tap handlers
+    shadow.querySelectorAll('[data-extra-charger]').forEach((tile, i) => {
+      const ch = (this._config.chargers || [])[i];
+      if (ch?.power) tile.addEventListener('click', () => this._moreInfo(ch.power));
+    });
+
     // Stats tabs
     shadow.querySelectorAll('[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -2364,6 +2523,13 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <label>Weather entity</label>
                 <ha-entity-picker data-key="weather_entity" allow-custom-entity></ha-entity-picker>
                 <span class="hint">Shows weather icon in forecast row.</span>
+              </div>
+            </div>
+            <div class="row cols-1">
+              <div class="field">
+                <label>Tariff forecast entity (optional)</label>
+                <ha-entity-picker data-key="tariff_forecast" allow-custom-entity></ha-entity-picker>
+                <span class="hint">Sensor with raw_today/prices array attribute — shows 12h bar chart.</span>
               </div>
             </div>
           </div>
