@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.4
+ * Smooth Energy Card v1.7.5
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.6.0
+ * @version 1.7.5
  */
 
-const VERSION = '1.7.4';
+const VERSION = '1.7.5';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -578,6 +578,11 @@ const CSS = `
   .ev-range{font-size:0.8em;font-weight:700;color:#8899cc;}
   .ev-range em{font-style:normal;font-size:0.8em;color:#3d5280;}
   .ev-eta{font-size:0.62em;font-weight:700;color:#34d399;text-align:center;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:6px;padding:2px 6px;width:100%;animation:eta-fade 1.2s ease-in-out infinite alternate;}
+  .ev-warranty { font-size:0.55em; font-weight:700; text-align:center; border-radius:5px; padding:2px 5px; border:1px solid; }
+  .ev-warranty.ok  { color:#34d399; background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.2); }
+  .ev-warranty.warn{ color:#fbbf24; background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.2); }
+  .ev-warranty.exp { color:#f87171; background:rgba(248,113,113,0.08); border-color:rgba(248,113,113,0.2); }
+  .ev-health { font-size:0.6em; font-weight:700; color:#60a5fa; }
   @keyframes eta-fade{from{opacity:1}to{opacity:0.65}}
 
   .charger-power{font-size:1.2em;font-weight:800;color:#c084fc;}
@@ -910,13 +915,25 @@ class SmoothEnergyCard extends HTMLElement {
     const revenueToday  = (exportKwhDay != null && price != null && feedIn > 0) ? exportKwhDay * price * feedIn : null;
 
     // Process EVs
+    const today = new Date();
     let evData = (c.evs || []).map(ev => {
       const bat  = clamp(numState(h, ev.battery, 0), 0, 100);
       const rng  = numState(h, ev.range, 0);
       const targetSoc = ev.target_soc ? numState(h, ev.target_soc, null) : null;
       const isCharging = ev.charging ? strState(h, ev.charging) === 'on' : false;
       const eta  = isCharging ? calcEta(h, bat, ev.charging_power||null, ev.charging_rate||null, ev.target_soc||null, ev.battery_capacity||60) : null;
-      return { ...ev, bat, rng, targetSoc, isCharging, eta };
+      // #24 Battery health + warranty
+      const battHealth = ev.battery_health ? clamp(numState(h, ev.battery_health, null), 0, 100) : null;
+      let warrantyMonths = null;
+      if (ev.purchase_date) {
+        const purchased = new Date(ev.purchase_date);
+        const warrantyYears = parseFloat(ev.warranty_years) || 8;
+        const warrantyEnd = new Date(purchased);
+        warrantyEnd.setFullYear(warrantyEnd.getFullYear() + warrantyYears);
+        const msLeft = warrantyEnd - today;
+        warrantyMonths = msLeft > 0 ? Math.round(msLeft / (1000 * 60 * 60 * 24 * 30)) : 0;
+      }
+      return { ...ev, bat, rng, targetSoc, isCharging, eta, battHealth, warrantyMonths };
     });
     // Fallback: if charger active and no EV reports charging state, mark first EV
     if (chargerActive && evData.length > 0 && !evData.some(ev => ev.isCharging) && !evData[0].charging) {
@@ -1793,6 +1810,12 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
         <div class="ev-range" data-tip="${this._t('tip_range', ev.rng, Math.round(ev.rng / 6))}">${ev.rng} <em>km</em></div>
         ${etaLine}
+        ${ev.battHealth != null ? `<div class="ev-health">🔋 ${Math.round(ev.battHealth)}% health</div>` : ''}
+        ${ev.warrantyMonths != null ? (() => {
+          const cls = ev.warrantyMonths <= 0 ? 'exp' : ev.warrantyMonths < 12 ? 'warn' : 'ok';
+          const txt = ev.warrantyMonths <= 0 ? '⚠️ Warranty expired' : `🛡️ ${ev.warrantyMonths}m warranty`;
+          return `<div class="ev-warranty ${cls}">${txt}</div>`;
+        })() : ''}
       </div>`;
   }
 
@@ -2613,10 +2636,28 @@ class SmoothEnergyCardEditor extends HTMLElement {
             <span class="hint">For ETA goal</span>
           </div>
         </div>
-        <div class="row cols-1">
+        <div class="row cols-2">
           <div class="field">
-            <label>Battery Capacity (kWh) — used for ETA from kW</label>
+            <label>Battery Capacity (kWh)</label>
             <input type="number" data-ev="${i}" data-ev-key="battery_capacity" value="${ev.battery_capacity||60}" min="1" max="200" step="0.1">
+            <span class="hint">Used for ETA calculation</span>
+          </div>
+          <div class="field">
+            <label>Battery Health sensor (%)</label>
+            <ha-entity-picker data-ev="${i}" data-ev-key="battery_health" allow-custom-entity></ha-entity-picker>
+            <span class="hint">Optional — shows health badge</span>
+          </div>
+        </div>
+        <div class="row cols-2">
+          <div class="field">
+            <label>Purchase date (YYYY-MM-DD)</label>
+            <input type="text" data-ev="${i}" data-ev-key="purchase_date" value="${(ev.purchase_date||'').replace(/"/g,'&quot;')}" placeholder="2022-06-01">
+            <span class="hint">For warranty countdown</span>
+          </div>
+          <div class="field">
+            <label>Battery warranty (years)</label>
+            <input type="number" data-ev="${i}" data-ev-key="warranty_years" value="${ev.warranty_years||8}" min="1" max="15" step="1">
+            <span class="hint">Typical EV: 8 years</span>
           </div>
         </div>
       </div>`;
