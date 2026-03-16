@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.9.1';
+const VERSION = '1.9.4';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
