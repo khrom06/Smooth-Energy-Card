@@ -1864,9 +1864,11 @@ class SmoothEnergyCard extends HTMLElement {
     const solarShareSvg = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
     const devCol = `rgb(${Math.round(251*solarShareSvg+248*(1-solarShareSvg))},${Math.round(191*solarShareSvg+113*(1-solarShareSvg))},${Math.round(36*solarShareSvg+113*(1-solarShareSvg))})`;
     // Device node positions: evenly spread across x=[32,328] at y=Drow
+    // When V2C charger node is visible, nudge any device that would overlap it (x≈180)
     const devPositions = activeDevNodes.map((dev, i) => {
       const n = activeDevNodes.length;
-      const x = Math.round(32 + (i + 0.5) * 296 / n);
+      let x = Math.round(32 + (i + 0.5) * 296 / n);
+      if (hasV2c && Math.abs(x - vP.x) < 34) x = x <= vP.x ? vP.x - 42 : vP.x + 42;
       const pth = `M${hP.x},${hP.y} C${hP.x},${hP.y+55} ${x},${Drow-55} ${x},${Drow}`;
       return { x, y: Drow, dev, pth, id: `pDev${i}` };
     });
