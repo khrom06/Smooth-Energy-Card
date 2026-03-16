@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.7
+ * Smooth Energy Card v1.7.8
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.7.7';
+const VERSION = '1.7.8';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1631,7 +1631,11 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _buildFlowSVG(d) {
-    const W=360, H=210;
+    const devEmoji = { ac:'❄️', water:'💧', tv:'📺', washer:'🫧', computer:'🖥️', server:'💻', car:'🚗', bolt:'⚡', home:'🏠', plug:'🔌' };
+    const activeDevNodes = (d.devices || []).filter(dev => dev.w > 50).slice(0, 4);
+    const Drow = 235; // y-coordinate for device nodes
+    const Rd = 16;    // device node radius
+    const W=360, H=activeDevNodes.length > 0 ? 260 : 210;
     const sP={x:58,y:62}, hP={x:180,y:105}, gP={x:302,y:62}, vP={x:180,y:185};
     const R=44, Rv=28;
     const bP={x:58,y:175};
@@ -1647,6 +1651,13 @@ class SmoothEnergyCard extends HTMLElement {
     const gClass=d.isExp?'c-grid-exp':'c-grid-imp';
     const vSolarPct=(vOn&&d.v2cW>0)?Math.round((d.solarFreeW/d.v2cW)*100):0;
     const sun = getSunArc();
+    // Device node positions: evenly spread across x=[32,328] at y=Drow
+    const devPositions = activeDevNodes.map((dev, i) => {
+      const n = activeDevNodes.length;
+      const x = Math.round(32 + (i + 0.5) * 296 / n);
+      const pth = `M${x},${Drow} C${x},${Drow-55} ${hP.x},${hP.y+55} ${hP.x},${hP.y}`;
+      return { x, y: Drow, dev, pth, id: `pDev${i}` };
+    });
     return `
     <svg class="flow-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -1768,6 +1779,14 @@ class SmoothEnergyCard extends HTMLElement {
           ? `<text x="${bP.x}" y="${bP.y+22}" class="n-name" style="font-size:7.5px">${fmtW(Math.abs(d.battW))}</text>`
           : `<text x="${bP.x}" y="${bP.y+22}" class="n-name" opacity="0.35" style="font-size:7.5px">${this._t('idle')}</text>`}
       ` : ''}
+      ${devPositions.map(({x, y, dev, pth, id}) => `
+        <radialGradient id="glow-dev-${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f97316" stop-opacity="0.28"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></radialGradient>
+        <path id="${id}" class="track" style="stroke:#fb923c;opacity:0.3" d="${pth}"/>
+        <circle cx="${x}" cy="${y}" r="${Rd+12}" fill="url(#glow-dev-${id})"/>
+        <circle cx="${x}" cy="${y}" r="${Rd}" fill="rgba(30,15,5,0.85)" stroke="#f97316" stroke-width="1.2"/>
+        <text x="${x}" y="${y-4}" font-size="13" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${devEmoji[dev.icon] || '🔌'}</text>
+        <text x="${x}" y="${y+10}" class="n-name" style="font-size:7px" pointer-events="none">${fmtW(dev.w)}</text>
+      `).join('')}
     </svg>`;
   }
 
@@ -1958,6 +1977,10 @@ class SmoothEnergyCard extends HTMLElement {
 
   _startParticles(shadow, d) {
     const totalW = Math.max(1, d.houseW);
+    const activeDevNodes = (d.devices || []).filter(dev => dev.w > 50).slice(0, 4);
+    const devFlows = activeDevNodes.map((dev, i) => ({
+      id: `pDev${i}`, col: '#fb923c', w: dev.w, active: true
+    }));
     [
       { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
       { id:'pImp',    col:'#f87171', w:d.gridImpW,          active:d.gridImpW>20 },
@@ -1965,6 +1988,7 @@ class SmoothEnergyCard extends HTMLElement {
       { id: d.v2gActive ? 'pV2g' : 'pV2c', col: d.v2gActive ? '#34d399' : '#c084fc', w: Math.abs(d.v2cW), active: Math.abs(d.v2cW) > 10 },
       { id:'pBatChg', col:'#34d399', w:d.battW,             active:d.battCharging },
       { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
+      ...devFlows,
     ].filter(f => f.active).forEach(flow => {
       const frac = clamp(flow.w / totalW, 0.04, 1);
       // High power = fast frequent shots, low power = slow infrequent shots
