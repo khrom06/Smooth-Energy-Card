@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.0.0
+ * Smooth Energy Card v2.2.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 1.7.5
+ * @version 2.2.0
  */
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -875,6 +875,64 @@ const CSS = `
   @keyframes grid-shockwave { 0%{r:44;opacity:0.75;stroke-width:2} 100%{r:95;opacity:0;stroke-width:0.5} }
   .grid-shockwave-ring { animation:grid-shockwave 1s ease-out forwards; fill:none; stroke:#34d399; }
 
+  /* ── WOW: THUNDERSTORM (expensive + importing) ── */
+  @keyframes rain-fall { 0%{transform:translateY(-6px);opacity:0} 70%{opacity:0.18} 100%{transform:translateY(10px);opacity:0} }
+  @keyframes lightning-bolt { 0%,88%,100%{opacity:0} 90%,95%{opacity:0.9} 92%{opacity:0} }
+  .storm-rain { animation:rain-fall 0.55s linear infinite; }
+  .storm-bolt { animation:lightning-bolt 4s ease-in-out infinite; }
+
+  /* ── WOW: BATTERY WATER FILL ── */
+  @keyframes bat-wave-scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-26px)} }
+  .bat-wave { animation:bat-wave-scroll 2.5s linear infinite; }
+
+  /* ── WOW: NODE GOSSIP LINES (all flows idle) ── */
+  @keyframes gossip-dash { 0%{stroke-dashoffset:12} 100%{stroke-dashoffset:0} }
+  .gossip-line { stroke:rgba(96,165,250,0.1); stroke-width:0.7; stroke-dasharray:3 9; fill:none; animation:gossip-dash 4s linear infinite; }
+
+  /* ── WOW: EV CHARGING WARP SPEED ── */
+  @keyframes warp-bg { 0%{background-position:0 0} 100%{background-position:21px 0} }
+  .ev-is-charging::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent 0,transparent 19px,rgba(147,210,255,0.06) 19px,rgba(147,210,255,0.06) 21px); animation:warp-bg 0.28s linear infinite; pointer-events:none; border-radius:inherit; z-index:0; }
+
+  /* ── WOW: EXPORT FIREWORKS ── */
+  @keyframes export-fw-ring { 0%{r:44;opacity:0.85;stroke-width:2} 100%{r:90;opacity:0;stroke-width:0.5} }
+  .export-fw-ring { animation:export-fw-ring 0.9s ease-out forwards; fill:none; stroke:#34d399; }
+  .exp-burst { position:absolute; pointer-events:none; z-index:10; top:0; left:0; width:100%; height:100%; }
+  @keyframes exp-particle { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(0.4)} }
+  .exp-particle { position:absolute; width:5px; height:5px; border-radius:50%; animation:exp-particle var(--dur) ease-out forwards; top:var(--oy); left:var(--ox); background:var(--col); }
+
+  /* ── Feature: GRID OUTAGE BANNER ── */
+  @keyframes outage-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .grid-outage-banner { background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.28); border-radius:10px; padding:10px 14px; margin:6px 0; animation:outage-pulse 2s ease-in-out infinite; display:flex; align-items:center; gap:10px; }
+  .grid-outage-icon { font-size:1.5em; }
+  .grid-outage-body { flex:1; }
+  .grid-outage-title { font-size:0.82em; font-weight:800; color:#fbbf24; }
+  .grid-outage-sub { font-size:0.72em; color:#94a3b8; margin-top:2px; }
+
+  /* ── Feature: BUDGET TRACKER ── */
+  .budget-tracker { background:rgba(10,16,38,0.7); border:1px solid rgba(96,165,250,0.1); border-radius:10px; padding:10px 14px; margin:6px 0; }
+  .budget-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .budget-lbl { font-size:0.74em; color:#8899cc; font-weight:600; }
+  .budget-val { font-size:0.78em; color:#e2e8f0; font-weight:700; }
+  .budget-bar-wrap { background:rgba(255,255,255,0.06); border-radius:6px; height:7px; position:relative; margin-bottom:5px; overflow:visible; }
+  .budget-bar { height:100%; border-radius:6px; transition:width 1.2s ease; min-width:4px; }
+  .budget-proj-line { position:absolute; top:-3px; bottom:-3px; width:2px; background:rgba(255,255,255,0.35); border-radius:2px; transform:translateX(-1px); }
+  .budget-footer { display:flex; justify-content:space-between; }
+  .budget-days { font-size:0.69em; color:#475569; }
+  .budget-proj { font-size:0.69em; color:#475569; }
+  .budget-over { font-size:0.69em; color:#f87171; font-weight:700; }
+
+  /* ── Feature: DEVICE ANOMALY ── */
+  .device.anomaly { box-shadow:0 0 0 2px rgba(248,113,113,0.4); }
+  .dev-anomaly-dot { width:7px; height:7px; background:#f87171; border-radius:50%; position:absolute; top:2px; right:2px; animation:dep-pulse 1.2s ease-in-out infinite; }
+
+  /* ── Feature: STACKED AREA POWER CHART ── */
+  .power-chart-wrap { background:rgba(8,14,34,0.75); border:1px solid rgba(96,165,250,0.1); border-radius:12px; padding:10px 14px 8px; margin:6px 0; }
+  .power-chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .power-chart-title { font-size:0.74em; font-weight:700; color:#8899cc; }
+  .power-chart-legend { display:flex; gap:8px; flex-wrap:wrap; }
+  .pck { font-size:0.6em; color:#8899cc; display:flex; align-items:center; gap:3px; }
+  .pck-dot { width:8px; height:3px; border-radius:2px; display:inline-block; }
+
   /* ── WOW #14: NODE DETAIL PANEL ── */
   .node-panel { background:rgba(12,18,40,0.97); border:1px solid rgba(96,165,250,0.18); border-radius:14px; padding:14px 16px; margin-top:10px; display:none; }
   .node-panel.show { display:block; animation:node-slide-up 0.22s ease-out; }
@@ -1177,6 +1235,16 @@ class SmoothEnergyCard extends HTMLElement {
         const firstActive = (c.chargers || []).find(ch => ch.power && Math.abs(toWatts(h, ch.power)) > 10);
         return firstActive ? toWatts(h, firstActive.power) : 0;
       })(),
+      // Grid connectivity (islanding detection)
+      gridConnected: c.grid_connected ? strState(h, c.grid_connected) !== 'off' : true,
+      // Daily net cost (import cost minus export revenue)
+      netDayEur: (() => {
+        const imp = (_rawImport != null && _rawImport < 300) ? _rawImport : null;
+        const exp = (_rawExport != null && _rawExport < 300) ? _rawExport : null;
+        if (imp == null || price == null) return null;
+        const feedIn = parseFloat(c.feed_in_rate) || 0;
+        return imp * price - (exp || 0) * price * feedIn;
+      })(),
     };
   }
 
@@ -1211,6 +1279,8 @@ class SmoothEnergyCard extends HTMLElement {
       }
       this._clearParticles();
       this._startParticles(shadow, d);
+      // Apply sky gradient on first render
+      this._updateSkyGradient(card);
       // Draw cable after layout is painted
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
       this._domReady = true;
@@ -1247,6 +1317,18 @@ class SmoothEnergyCard extends HTMLElement {
       this._solarPeakToday = d.solarW;
       this._solarBurst(shadow);
     }
+
+    // WOW: export fireworks on new export record
+    this._checkExportRecord(d, shadow);
+
+    // WOW: time-of-day sky gradient
+    this._updateSkyGradient(card);
+
+    // Feature: update in-memory power buffer for stacked chart
+    this._updatePowerBuffer(d);
+
+    // Feature: update device anomaly flags
+    this._updateAnomalyData(d);
 
     // WOW: header score badge
     const headerScore = card.querySelector('[data-uid="header-score"]');
@@ -1292,9 +1374,21 @@ class SmoothEnergyCard extends HTMLElement {
       else if (!isNaN(lo) && d.price <= lo) pricePill.classList.add('alert-low');
     }
 
+    // Grid outage banner
+    const gridOutageEl = card.querySelector('[data-uid="grid-outage"]');
+    if (gridOutageEl) gridOutageEl.innerHTML = this._buildGridOutage(d);
+
     // Charging recommendation
     const recoEl = card.querySelector('[data-uid="charging-reco"]');
     if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+
+    // Budget tracker
+    const budgetEl = card.querySelector('[data-uid="budget-tracker"]');
+    if (budgetEl) budgetEl.innerHTML = this._buildBudgetTracker(d);
+
+    // Power chart
+    const powerChartEl = card.querySelector('[data-uid="power-chart"]');
+    if (powerChartEl) powerChartEl.innerHTML = this._buildPowerChart();
 
     // Price chart
     const priceChartEl = card.querySelector('[data-uid="price-chart"]');
@@ -1880,6 +1974,7 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
       </div>
       ${this._buildTempoBanner(d)}
+      <div data-uid="grid-outage">${this._buildGridOutage(d)}</div>
       <div class="flow-wrap" data-uid="flow-wrap" style="position:relative">
         <div class="orb-detail-panel" data-uid="orb-detail" hidden></div>
         ${this._buildFlowSVG(d)}${this._buildWeatherPopup(d)}</div>
@@ -1899,6 +1994,8 @@ class SmoothEnergyCard extends HTMLElement {
       <div data-uid="price-chart">${this._buildPriceChart(d)}</div>
       <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
+      <div data-uid="budget-tracker">${this._buildBudgetTracker(d)}</div>
+      <div data-uid="power-chart">${this._buildPowerChart()}</div>
       <div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>
       <div data-uid="dev-scheduler">${this._buildDevScheduler(d)}</div>
       <div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>
@@ -2012,6 +2109,7 @@ class SmoothEnergyCard extends HTMLElement {
         <clipPath id="clip-sol"><circle cx="${sP.x}" cy="${sP.y}" r="${R-2}"/></clipPath>
         <clipPath id="clip-house"><circle cx="${hP.x}" cy="${hP.y}" r="${R-2}"/></clipPath>
         <clipPath id="clip-grid"><circle cx="${gP.x}" cy="${gP.y}" r="${R-2}"/></clipPath>
+        <clipPath id="clip-bat"><circle cx="${bP.x}" cy="${bP.y}" r="${Rb-1}"/></clipPath>
         <linearGradient id="trk-sol" x1="${sP.x}" y1="${sP.y}" x2="${hP.x}" y2="${hP.y}" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#60a5fa"/>
         </linearGradient>
@@ -2039,6 +2137,36 @@ class SmoothEnergyCard extends HTMLElement {
           filter="drop-shadow(0 0 ${(4 + sun.noon*4).toFixed(0)}px ${sun.noon > 0.7 ? '#fbbf24' : '#fb923c'})"
           opacity="${(0.5 + sun.noon * 0.5).toFixed(2)}"/>
       ` : ''}
+      ${(() => {
+        // WOW: Node gossip lines — faint dashed connections when everything is idle
+        const allIdle = !sOn && !iOn && !eOn && !vOn && !d.battCharging && !d.battDischarging;
+        if (!allIdle) return '';
+        const lines = [
+          [sP, hP], [hP, gP], [sP, gP],
+          ...(hasV2c ? [[hP, vP]] : []),
+          ...(d.hasBattery ? [[hP, bP]] : []),
+        ];
+        return lines.map(([a, b]) => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="gossip-line"/>`).join('');
+      })()}
+      ${(() => {
+        // WOW: Thunderstorm — when price is high AND we're importing, or import > 3kW
+        const priceHi = parseFloat(this._config.price_alert_high);
+        const stormActive = d.gridImpW > 3000 || (d.gridImpW > 300 && priceHi && d.price >= priceHi);
+        if (!stormActive) return '';
+        // Rain streaks near grid orb
+        const rainLines = [...Array(10)].map((_, i) => {
+          const rx = gP.x - 50 + i * 11 + (i%3)*3;
+          const ry1 = gP.y - 35 + (i%4)*4;
+          return `<line x1="${rx}" y1="${ry1}" x2="${rx-2}" y2="${ry1+12}" class="storm-rain" style="animation-delay:${(i*0.07).toFixed(2)}s;stroke:rgba(147,210,255,0.22);stroke-width:0.8"/>`;
+        }).join('');
+        // Lightning bolt
+        const lx = gP.x + 8;
+        const bolt = `<polyline points="${lx},${gP.y-42} ${lx-7},${gP.y-22} ${lx+3},${gP.y-22} ${lx-5},${gP.y}" class="storm-bolt" fill="none" stroke="rgba(253,224,71,0.95)" stroke-width="1.5" stroke-linejoin="round"/>`;
+        // Cloud silhouette
+        const cx = gP.x - 12, cy = gP.y - 52;
+        const cloud = `<path d="M${cx-18},${cy+8} a8,8 0 0,1 0,-16 a6,6 0 0,1 10,-8 a10,10 0 0,1 20,4 a6,6 0 0,1 0,20 z" fill="rgba(30,40,70,0.7)" opacity="0.7"/>`;
+        return cloud + rainLines + bolt;
+      })()}
       ${sOn?`<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>`:''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R+14}" fill="url(#glow-g)"/>
@@ -2112,6 +2240,29 @@ class SmoothEnergyCard extends HTMLElement {
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:url(#trk-batt)" d="${bDisPth}"/>` : ''}
         ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
         <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5" class="${d.battCharging?'batt-charging':d.battDischarging?'batt-discharging':''}"/>
+        ${(() => {
+          // WOW: Battery water fill — SOC level shown as animated wave fill
+          const soc = d.battSoc != null ? clamp(d.battSoc, 0, 100) : 0;
+          if (soc < 2) return '';
+          const fillH = Rb * 2 * soc / 100;
+          const fillY = bP.y + Rb - fillH;
+          const wCol = soc > 50 ? '#34d399' : soc > 20 ? '#fbbf24' : '#f87171';
+          // Wave path: 4 periods wide starting at bP.x-Rb*2, each period = Rb/2 wide
+          const wA = Math.min(2.5, fillH * 0.15); // wave amplitude scales with fill height
+          const wx = bP.x - Rb * 2;
+          const wave = `M${wx},${fillY} ` +
+            [...Array(8)].map((_, k) => {
+              const px = wx + k * (Rb / 2);
+              const py = fillY + (k % 2 === 0 ? -wA : wA);
+              const nx = px + Rb / 4, ny = fillY;
+              return `Q${px},${py} ${nx},${ny}`;
+            }).join(' ') +
+            ` L${wx + Rb * 4},${bP.y + Rb} L${wx},${bP.y + Rb} Z`;
+          return `<g clip-path="url(#clip-bat)">
+            <rect x="${bP.x-Rb}" y="${fillY+wA}" width="${Rb*2}" height="${fillH}" fill="${wCol}" opacity="0.3"/>
+            <path class="bat-wave" d="${wave}" fill="${wCol}" opacity="0.55"/>
+          </g>`;
+        })()}
         <circle cx="${bP.x-Rb*0.28}" cy="${bP.y-Rb*0.28}" r="${Rb*0.2}" fill="white" opacity="${(d.battCharging||d.battDischarging)?'0.28':'0.07'}"/>
         <text x="${bP.x}" y="${bP.y-6}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="${(d.battCharging||d.battDischarging)?'#34d399':'#1a3a28'}">🔋</text>
         ${d.battSoc != null
@@ -2216,8 +2367,11 @@ class SmoothEnergyCard extends HTMLElement {
     const sparkHtml = sparkData
       ? `<div class="dev-expand-spark">${this._buildSparkSvg(sparkData, on?'#fbbf24':'#3d5280', 80, 22)}</div><div class="dev-expand-info">6h · peak ${fmtW(Math.max(...sparkData))}</div>`
       : `<div class="dev-expand-info">${dev.entity || ''}</div>`;
-    return `<div class="device${on?' on':''}${isAlert?' alert':''}${isExpanded?' expanded':''}" data-dev-entity="${dev.entity||''}" data-tip="${tip}">
+    const isAnomaly = dev.entity && this._anomalyFlags && this._anomalyFlags.has(dev.entity);
+    const anomalyTip = isAnomaly ? '\n⚠️ Using significantly more than usual' : '';
+    return `<div class="device${on?' on':''}${isAlert?' alert':''}${isExpanded?' expanded':''}${isAnomaly?' anomaly':''}" data-dev-entity="${dev.entity||''}" data-tip="${tip}${anomalyTip}" style="position:relative">
       ${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div>
+      ${isAnomaly ? '<div class="dev-anomaly-dot" title="Unusual consumption"></div>' : ''}
       <div class="dev-expand">${sparkHtml}</div>
     </div>`;
   }
@@ -2256,6 +2410,212 @@ class SmoothEnergyCard extends HTMLElement {
         setTimeout(() => ring.remove(), 1100 + i * 220);
       }, i * 70);
     }
+  }
+
+  // ─── WOW: Time-of-day sky gradient ────────────────────────────────────────
+  _updateSkyGradient(card) {
+    const h = new Date().getHours() + new Date().getMinutes() / 60;
+    // [topColor, midColor] for radial-gradient
+    const sky =
+      h < 4   ? ['#050a18', '#060d20'] :
+      h < 6   ? ['#0a0820', '#1a0a38'] :   // pre-dawn — deep indigo
+      h < 8   ? ['#1a0a2e', '#6b2810'] :   // sunrise — purple→warm amber
+      h < 11  ? ['#0c1a40', '#0e2050'] :   // morning
+      h < 15  ? ['#091630', '#0d1e44'] :   // midday — deep blue
+      h < 17  ? ['#0c1a40', '#0e2050'] :   // afternoon
+      h < 19  ? ['#1a0a28', '#5a2008'] :   // golden hour — warm rust
+      h < 21  ? ['#180818', '#2d0d24'] :   // sunset — deep magenta
+               ['#050a18', '#060d20'];      // night
+    card.style.background = `radial-gradient(ellipse at 50% 0%, ${sky[1]} 0%, ${sky[0]} 70%)`;
+  }
+
+  // ─── WOW: Export fireworks on new daily record ─────────────────────────────
+  _checkExportRecord(d, shadow) {
+    if (!d.exportKwhDay || d.exportKwhDay < 0.3) return;
+    const today = new Date().toISOString().slice(0, 10);
+    let rec = {};
+    try { rec = JSON.parse(localStorage.getItem('sec-exp-rec') || '{}'); } catch(e) {}
+    const prev = rec.best || 0;
+    if (d.exportKwhDay > prev && d.exportKwhDay > (this._lastExpFire || 0) + 0.2) {
+      this._lastExpFire = d.exportKwhDay;
+      rec.best = d.exportKwhDay; rec.date = today;
+      try { localStorage.setItem('sec-exp-rec', JSON.stringify(rec)); } catch(e) {}
+      this._exportFireworks(shadow);
+    }
+  }
+
+  _exportFireworks(shadow) {
+    // SVG rings from grid orb
+    const gP = { x: 302, y: 62 };
+    const svg = shadow.querySelector('.flow-svg');
+    if (svg) {
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          ring.setAttribute('cx', gP.x); ring.setAttribute('cy', gP.y); ring.setAttribute('r', 44);
+          ring.setAttribute('class', 'export-fw-ring');
+          ring.style.animationDelay = `${i * 0.15}s`;
+          svg.appendChild(ring);
+          setTimeout(() => ring.remove(), 1000 + i * 150);
+        }, i * 50);
+      }
+    }
+    // CSS particle burst from flow-wrap grid orb position
+    const flowWrap = shadow.querySelector('[data-uid="flow-wrap"]');
+    if (!flowWrap) return;
+    let burst = flowWrap.querySelector('.exp-burst');
+    if (burst) burst.remove();
+    burst = document.createElement('div');
+    burst.className = 'exp-burst';
+    flowWrap.appendChild(burst);
+    const colors = ['#34d399','#6ee7b7','#fbbf24','#a3e635','#60a5fa'];
+    const svgRect = svg ? svg.getBoundingClientRect() : null;
+    const wrapRect = flowWrap.getBoundingClientRect();
+    // Origin: approximate grid orb position in flow-wrap coordinates
+    const ox = svgRect ? (svgRect.left - wrapRect.left + svgRect.width * (302/360)) : wrapRect.width * 0.84;
+    const oy = svgRect ? (svgRect.top - wrapRect.top + svgRect.height * (62 / 210)) : wrapRect.height * 0.29;
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('div');
+      p.className = 'exp-particle';
+      const angle = (i / 22) * Math.PI * 2;
+      const dist = 35 + Math.random() * 45;
+      p.style.cssText = `--ox:${ox.toFixed(0)}px;--oy:${oy.toFixed(0)}px;--dx:${(Math.cos(angle)*dist).toFixed(0)}px;--dy:${(Math.sin(angle)*dist).toFixed(0)}px;--dur:${(0.7+Math.random()*0.5).toFixed(2)}s;--col:${colors[i%colors.length]};top:${oy.toFixed(0)}px;left:${ox.toFixed(0)}px;animation-delay:${(Math.random()*0.1).toFixed(2)}s`;
+      burst.appendChild(p);
+    }
+    setTimeout(() => burst.remove(), 2500);
+  }
+
+  // ─── Feature: Grid outage / islanding banner ───────────────────────────────
+  _buildGridOutage(d) {
+    if (d.gridConnected !== false) return '';
+    const batH = (d.battSoc != null && d.houseW > 0 && d.battDischarging)
+      ? Math.round(d.battSoc * (parseFloat(this._config.battery_rated_capacity) || 10) * 0.01 / (d.houseW / 1000) * 10) / 10
+      : null;
+    const runwayTxt = batH != null ? `Battery runway: ~${batH}h at current load` : 'Battery status unknown';
+    return `<div class="grid-outage-banner">
+      <div class="grid-outage-icon">⚡</div>
+      <div class="grid-outage-body">
+        <div class="grid-outage-title">🔌 ISLANDING MODE — Grid offline</div>
+        <div class="grid-outage-sub">${runwayTxt}</div>
+      </div>
+    </div>`;
+  }
+
+  // ─── Feature: Monthly budget tracker ──────────────────────────────────────
+  _buildBudgetTracker(d) {
+    const budget = parseFloat(this._config.monthly_budget);
+    if (!budget || budget <= 0) return '';
+    // Update daily cost log in localStorage
+    const today = new Date().toISOString().slice(0, 10);
+    const thisMonth = today.slice(0, 7);
+    let log = {};
+    try { log = JSON.parse(localStorage.getItem('sec-budget-log') || '{}'); } catch(e) {}
+    if (d.netDayEur != null && d.netDayEur >= 0) {
+      log[today] = Math.max(log[today] || 0, parseFloat(d.netDayEur.toFixed(3)));
+      // Trim to 60 days
+      const cutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+      Object.keys(log).forEach(k => { if (k < cutoff) delete log[k]; });
+      try { localStorage.setItem('sec-budget-log', JSON.stringify(log)); } catch(e) {}
+    }
+    const monthSpent = Object.entries(log).filter(([k]) => k.startsWith(thisMonth)).reduce((s, [, v]) => s + v, 0);
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const projected = dayOfMonth > 0 ? (monthSpent / dayOfMonth) * daysInMonth : 0;
+    const pct = Math.min(100, (monthSpent / budget) * 100);
+    const projPct = Math.min(100, (projected / budget) * 100);
+    const barCol = pct >= 100 ? '#f87171' : pct >= 80 ? '#f59e0b' : '#34d399';
+    const daysLeft = daysInMonth - dayOfMonth;
+    return `<div class="budget-tracker">
+      <div class="budget-header">
+        <span class="budget-lbl">💶 Monthly budget</span>
+        <span class="budget-val">${fmtEur(monthSpent)} / ${fmtEur(budget)}</span>
+      </div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar" style="width:${pct.toFixed(1)}%;background:${barCol}"></div>
+        ${projPct > pct + 1 ? `<div class="budget-proj-line" style="left:${projPct.toFixed(1)}%"></div>` : ''}
+      </div>
+      <div class="budget-footer">
+        <span class="budget-days">${daysLeft}d remaining</span>
+        <span class="${projected > budget ? 'budget-over' : 'budget-proj'}">Projected: ${fmtEur(projected)}</span>
+      </div>
+    </div>`;
+  }
+
+  // ─── Feature: Device anomaly detection (Welford's online algorithm) ────────
+  _updateAnomalyData(d) {
+    const hour = new Date().getHours();
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem('sec-anomaly') || '{}'); } catch(e) {}
+    const flags = new Set();
+    (d.devices || []).forEach(dev => {
+      if (!dev.entity || dev.w < 5) return;
+      const key = dev.entity;
+      if (!store[key]) store[key] = Array(24).fill(null).map(() => ({ n: 0, mean: 0, M2: 0 }));
+      const slot = store[key][hour];
+      // Welford update
+      const w = dev.w;
+      slot.n++;
+      const delta = w - slot.mean;
+      slot.mean += delta / slot.n;
+      slot.M2 += delta * (w - slot.mean);
+      // Flag if mean + 2*std dev significantly exceeded (need ≥8 samples)
+      if (slot.n >= 8) {
+        const variance = slot.M2 / (slot.n - 1);
+        const std = Math.sqrt(variance);
+        if (w > slot.mean + Math.max(2 * std, 50) && w > slot.mean * 1.5) {
+          flags.add(key);
+        }
+      }
+    });
+    this._anomalyFlags = flags;
+    try { localStorage.setItem('sec-anomaly', JSON.stringify(store)); } catch(e) {}
+  }
+
+  // ─── Feature: Stacked area power chart ─────────────────────────────────────
+  _updatePowerBuffer(d) {
+    if (!this._powerBuf) this._powerBuf = [];
+    this._powerBuf.push({
+      t: Date.now(),
+      sol: d.solarW || 0,
+      imp: d.gridImpW || 0,
+      exp: d.gridExpW || 0,
+      house: d.houseW || 0,
+    });
+    // Cap at 180 samples (~30 min at 10s updates)
+    if (this._powerBuf.length > 180) this._powerBuf.shift();
+  }
+
+  _buildPowerChart() {
+    if (!this._powerBuf || this._powerBuf.length < 3) return '';
+    const buf = this._powerBuf;
+    const W = 310, H = 60;
+    const n = buf.length;
+    const maxW = Math.max(100, ...buf.map(s => Math.max(s.sol, s.imp, s.house)));
+    const scaleY = v => H - Math.round((v / maxW) * H);
+    const pts = (key) => buf.map((s, i) => `${Math.round(i * W / (n - 1))},${scaleY(s[key])}`).join(' ');
+    // Build filled polylines bottom-to-top: house (blue), solar (amber), import (red), export (green)
+    const mkPoly = (key, col, opacity) => {
+      const p = buf.map((s, i) => `${Math.round(i * W / (n - 1))},${scaleY(s[key])}`).join(' ');
+      return `<polyline points="${p} ${W},${H} 0,${H}" fill="${col}" fill-opacity="${opacity}" stroke="none"/>
+              <polyline points="${p}" fill="none" stroke="${col}" stroke-width="1" stroke-opacity="0.7"/>`;
+    };
+    return `<div class="power-chart-wrap">
+      <div class="power-chart-header">
+        <span class="power-chart-title">⚡ Live power · last ${Math.round((buf[n-1].t - buf[0].t)/60000)}min</span>
+        <span class="power-chart-legend">
+          <span class="pck"><span class="pck-dot" style="background:#fbbf24"></span>Solar</span>
+          <span class="pck"><span class="pck-dot" style="background:#f87171"></span>Import</span>
+          <span class="pck"><span class="pck-dot" style="background:#34d399"></span>Export</span>
+          <span class="pck"><span class="pck-dot" style="background:#60a5fa"></span>House</span>
+        </span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none">
+        ${mkPoly('house', '#60a5fa', 0.12)}
+        ${mkPoly('imp', '#f87171', 0.15)}
+        ${mkPoly('exp', '#34d399', 0.15)}
+        ${mkPoly('sol', '#fbbf24', 0.18)}
+      </svg>
+    </div>`;
   }
 
   _drawChargingCable(shadow, d) {

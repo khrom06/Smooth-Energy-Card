@@ -93,6 +93,10 @@ price_alert_low: 0.05          # price pill turns green below this €/kWh
 grid_energy_import: sensor.your_grid_import   # kWh imported today (daily reset)
 grid_energy_export: sensor.your_grid_export   # kWh exported today (daily reset)
 feed_in_rate: 0.1              # export revenue = export_kwh × price × feed_in_rate
+monthly_budget: 150            # € — shows monthly burn-rate bar with projected cost
+
+# ─── Grid connectivity (optional, for islanding detection) ────
+grid_connected: binary_sensor.your_grid_status  # off = grid offline → islanding banner
 
 # ─── Theme ───────────────────────────────────────────────────
 theme: dark                    # "dark" (default) or "light"
