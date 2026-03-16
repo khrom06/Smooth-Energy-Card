@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.8
+ * Smooth Energy Card v1.7.9
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.7.8';
+const VERSION = '1.7.9';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1074,7 +1074,10 @@ class SmoothEnergyCard extends HTMLElement {
 
     // Flow SVG — rebuild (no persistent CSS animations live inside SVG)
     const flowWrap = card.querySelector('[data-uid="flow-wrap"]');
-    if (flowWrap) flowWrap.innerHTML = this._buildFlowSVG(d);
+    if (flowWrap) {
+      flowWrap.innerHTML = this._buildFlowSVG(d) + this._buildWeatherPopup(d);
+      this._setupWeatherPopup(flowWrap);
+    }
 
     // Surplus banner
     const surplusWrap = card.querySelector('[data-uid="surplus-wrap"]');
@@ -1655,7 +1658,7 @@ class SmoothEnergyCard extends HTMLElement {
     const devPositions = activeDevNodes.map((dev, i) => {
       const n = activeDevNodes.length;
       const x = Math.round(32 + (i + 0.5) * 296 / n);
-      const pth = `M${x},${Drow} C${x},${Drow-55} ${hP.x},${hP.y+55} ${hP.x},${hP.y}`;
+      const pth = `M${hP.x},${hP.y} C${hP.x},${hP.y+55} ${x},${Drow-55} ${x},${Drow}`;
       return { x, y: Drow, dev, pth, id: `pDev${i}` };
     });
     return `
@@ -2072,6 +2075,19 @@ class SmoothEnergyCard extends HTMLElement {
     ].filter(s => s !== '').join('\n');
   }
 
+  _setupWeatherPopup(container) {
+    const solarOrb = container.querySelector('[data-uid="solar-orb"]');
+    const weatherPopup = container.querySelector('[data-uid="weather-popup"]');
+    if (!solarOrb || !weatherPopup) return;
+    let wpHideTimer = null;
+    const showWp = () => { clearTimeout(wpHideTimer); weatherPopup.classList.add('show'); };
+    const hideWp = () => { wpHideTimer = setTimeout(() => weatherPopup.classList.remove('show'), 120); };
+    solarOrb.addEventListener('mouseenter', showWp);
+    solarOrb.addEventListener('mouseleave', hideWp);
+    weatherPopup.addEventListener('mouseenter', () => clearTimeout(wpHideTimer));
+    weatherPopup.addEventListener('mouseleave', hideWp);
+  }
+
   _setupTapHandlers(shadow) {
     const c = this._config;
     // Stats popup (mouseover)
@@ -2109,17 +2125,8 @@ class SmoothEnergyCard extends HTMLElement {
       });
     }
     // Solar orb weather popup
-    const solarOrb = shadow.querySelector('[data-uid="solar-orb"]');
-    const weatherPopup = shadow.querySelector('[data-uid="weather-popup"]');
-    if (solarOrb && weatherPopup) {
-      let wpHideTimer = null;
-      const showWp = () => { clearTimeout(wpHideTimer); weatherPopup.classList.add('show'); };
-      const hideWp = () => { wpHideTimer = setTimeout(() => weatherPopup.classList.remove('show'), 120); };
-      solarOrb.addEventListener('mouseenter', showWp);
-      solarOrb.addEventListener('mouseleave', hideWp);
-      weatherPopup.addEventListener('mouseenter', () => clearTimeout(wpHideTimer));
-      weatherPopup.addEventListener('mouseleave', hideWp);
-    }
+    const flowWrapEl = shadow.querySelector('[data-uid="flow-wrap"]');
+    if (flowWrapEl) this._setupWeatherPopup(flowWrapEl);
 
     // Charger card
     const chargerCard = shadow.querySelector('.ev-charger');
