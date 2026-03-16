@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.5';
+const VERSION = '1.8.6';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -2724,23 +2724,10 @@ class SmoothEnergyCardEditor extends HTMLElement {
           </div>
         </div>
 
-        <!-- V2C CHARGER -->
-        <div class="section">
-          <div class="section-head"><h3>🔌 V2C Charger</h3></div>
-          <div class="section-body">
-            <div class="row cols-1">
-              <div class="field">
-                <label>Charger Image URL</label>
-                <input type="text" data-key="v2c_image" value="${(c.v2c_image||'').replace(/"/g,'&quot;')}" placeholder="/local/images/v2ctrydan-1.png">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ADDITIONAL CHARGERS -->
+        <!-- CHARGERS -->
         <div class="section">
           <div class="section-head">
-            <h3>⚡ Additional Chargers</h3>
+            <h3>🔌 Chargers</h3>
           </div>
           <div class="section-body" id="chargers-body">
             ${chargers.map((ch, i) => this._buildChargerForm(ch, i)).join('')}
