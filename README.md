@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -288,6 +288,21 @@ This matches Shelly EM in standard configuration. If your setup uses the opposit
 - Range: `km`
 
 ## Changelog
+
+### v2.4.0 (2026-03-16)
+- **Fix:** Personal Records, Event Log and Weekly Heatmap `<details>` panels no longer collapse on every HA state update — `_patch()` now preserves `open` state before innerHTML replacement
+- **EV grid-only cost:** session cost estimate subtracts live solar contribution — shows "☀️ FREE" when >95% solar-powered
+- **CO₂ intensity badge:** green/amber/red gCO₂/kWh badge from `co2_grid_intensity` sensor (Electricity Maps, etc.)
+- **Heat pump / diverter SVG node:** optional energy flow node at bottom-right for `heat_pump_power` or `diverter_power`
+- **Earned revenue ticker:** pulsing live €/h display during active solar export
+- **Solcast hourly overlay:** reads hourly forecast attributes from forecast sensor
+- **Battery State-of-Health estimator:** capacity fade tracker from `battery_cycles` + `battery_purchase_date`
+- **Export streak counter:** consecutive days with net export; personal best in localStorage
+- **Weekly demand heatmap:** 7×24h colour tile grid of hourly consumption patterns
+- **Solar divert tracker:** daily kWh to hot water / heat pump from `diverter_today_kwh` sensor
+- **Grid outage banner:** battery runway countdown added
+- **Monthly budget:** month-end projected bill added
+- New config: `co2_grid_intensity`, `heat_pump_power`, `diverter_power`, `diverter_today_kwh`, `battery_cycles`, `battery_purchase_date`
 
 ### v2.3.1 (2026-03-16)
 - Fix: added `hide`, `compact`, `quick_actions`, `monthly_budget`, `grid_connected`, `sunrise_hour`, `sunset_hour` to `_defaultConfig()` (these config keys were silently ignored before)

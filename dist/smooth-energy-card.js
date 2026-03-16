@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.3.2
+ * Smooth Energy Card v2.4.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.3.2
+ * @version 2.4.0
  */
 
-const VERSION = '2.3.2';
+const VERSION = '2.4.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1019,6 +1019,62 @@ const CSS = `
   .card-compact .ev-section{padding:8px 12px}
   .card-compact .section-title{font-size:0.75em;margin:4px 0}
   .card-compact .stat-card{padding:10px 8px}
+
+  /* ── Feature 1: CO₂ Grid Intensity Badge ── */
+  .co2-intensity-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:10px;font-size:0.75em;font-weight:600;margin:2px 12px 4px;cursor:default}
+  .co2-badge-green{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#34d399}
+  .co2-badge-amber{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24}
+  .co2-badge-red{background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171}
+  .co2-unit{font-weight:400;opacity:0.8}
+  .co2-label{opacity:0.7;font-size:0.9em}
+
+  /* ── Feature 4: Battery State-of-Health ── */
+  .batt-soh-wrap{margin:2px 12px 4px;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)}
+  .soh-label{font-size:0.75em;color:#94a3b8;margin-bottom:4px}
+  .soh-bar-track{height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden}
+  .soh-bar{height:100%;border-radius:2px;transition:width 1s ease}
+  .soh-good{background:#34d399}.soh-ok{background:#fbbf24}.soh-warn{background:#f87171}
+
+  /* ── Feature 5: Grid outage battery runway ── */
+  .outage-runway{font-size:0.75em;color:#fcd34d;margin-top:4px;font-weight:500}
+
+  /* ── Feature 6: Solcast hourly overlay ── */
+  .solcast-overlay{margin:4px 12px;padding:8px 12px;border-radius:10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.15)}
+  .solcast-title{font-size:0.72em;color:#fbbf24;font-weight:600;margin-bottom:4px}
+  .solcast-range{display:flex;justify-content:space-between;font-size:0.6em;color:#475569;margin-top:2px}
+
+  /* ── Feature 7: Earned revenue ticker ── */
+  .revenue-ticker{display:flex;align-items:center;gap:8px;margin:2px 12px 6px;padding:7px 12px;border-radius:10px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);font-size:0.8em;color:#34d399;flex-wrap:wrap;animation:rev-glow 2s ease-in-out infinite}
+  @keyframes rev-glow{0%,100%{box-shadow:0 0 8px rgba(52,211,153,0.15)}50%{box-shadow:0 0 16px rgba(52,211,153,0.3)}}
+  .rev-icon{font-size:1.1em}
+  .rev-text{font-weight:600}
+  .rev-sub{font-size:0.8em;opacity:0.7;flex-basis:100%}
+
+  /* ── Feature 8: EV charge-by-solar planner ── */
+  .ev-solar-plan{font-size:0.62em;color:#fbbf24;text-align:center;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:2px 6px;width:100%;margin-top:2px}
+
+  /* ── Feature 9: Demand Heatmap ── */
+  .heatmap-panel{margin:4px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)}
+  .hm-title{cursor:pointer;padding:8px 12px;font-size:0.8em;font-weight:600;color:#64748b;list-style:none}
+  .hm-title::marker,.hm-title::-webkit-details-marker{display:none}
+  .heatmap-wrap{padding:4px 10px 10px;overflow-x:auto}
+  .hm-hour-labels{display:grid;grid-template-columns:40px repeat(24,1fr);font-size:0.55em;color:#475569;margin-bottom:2px}
+  .hm-hour-labels span{text-align:center}
+  .hm-grid{display:grid;grid-template-columns:40px repeat(24,1fr);gap:2px}
+  .hm-day-label{font-size:0.6em;color:#64748b;display:flex;align-items:center;padding-right:4px}
+  .hm-cell{height:14px;border-radius:2px;cursor:default;transition:opacity 0.2s}
+  .hm-cell:hover{opacity:0.7}
+
+  /* ── Feature 10: Solar divert tracker ── */
+  .diverter-tracker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:2px 12px 4px;padding:6px 12px;border-radius:10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);font-size:0.78em}
+  .div-live{color:#38bdf8;font-weight:600}
+  .div-today{color:#7dd3fc}
+  .div-save{color:#34d399;font-weight:600}
+
+  /* ── Feature 11: Export streak ── */
+  .export-streak{margin:2px 12px 4px;padding:6px 12px;border-radius:10px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);font-size:0.78em;color:#6ee7b7;font-weight:600}
+  .streak-best{background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);color:#fcd34d;animation:streak-pulse 2s ease-in-out infinite}
+  @keyframes streak-pulse{0%,100%{opacity:1}50%{opacity:0.7}}
 `;
 
 
@@ -1086,6 +1142,16 @@ class SmoothEnergyCard extends HTMLElement {
       grid_connected: '',           // binary_sensor — off = grid outage banner shown
       sunrise_hour: null,           // override sun arc start hour (6 by default when sun.sun unavailable)
       sunset_hour: null,            // override sun arc end hour (21 by default when sun.sun unavailable)
+      // Feature 1: Live grid carbon intensity badge
+      co2_grid_intensity: '',       // sensor — gCO₂/kWh or fossil_fuel_percentage
+      // Feature 2: Heat pump / solar diverter
+      heat_pump_power: '',          // W or kW — heat pump consumption
+      diverter_power: '',           // W or kW — solar diverter (hot water)
+      // Feature 4: Battery state-of-health estimator
+      battery_cycles: '',           // optional — charge cycle counter sensor
+      battery_purchase_date: '',    // YYYY-MM-DD string
+      // Feature 10: Solar divert tracker
+      diverter_today_kwh: '',       // kWh diverted today (daily reset)
     };
   }
 
@@ -1239,7 +1305,17 @@ class SmoothEnergyCard extends HTMLElement {
           depStatus = { time: timeStr, ok: etaHours == null || etaHours <= hoursUntilDep };
         }
       }
-      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, sessionGridCostEst, chargingFree, battHealth, warrantyMonths, depStatus };
+      // Feature 8: Solar-only ETA
+      let solarOnlyEta = null;
+      if (ev.battery_capacity) {
+        const targetP = (targetSoc != null && targetSoc > bat) ? targetSoc : 100;
+        const kWhNeeded = Math.max(0, (targetP - bat) / 100) * (parseFloat(ev.battery_capacity) || 60);
+        const solarKwAvail = solarW / 1000;
+        if (solarKwAvail > 0.5) {
+          solarOnlyEta = kWhNeeded / solarKwAvail;
+        }
+      }
+      return { ...ev, bat, rng, targetSoc, isCharging, eta, chargingW, chargingCostH, sessionGridCostEst, chargingFree, battHealth, warrantyMonths, depStatus, solarOnlyEta, solarW };
     });
     // Fallback: if charger active and no EV reports charging state, mark first EV
     if (chargerActive && evData.length > 0 && !evData.some(ev => ev.isCharging) && !evData[0].charging) {
@@ -1304,6 +1380,55 @@ class SmoothEnergyCard extends HTMLElement {
     const avgHouseW = houseW; // live reading
     const loadLabel = avgHouseW > 5000 ? 'heavy' : avgHouseW > 2000 ? 'moderate' : 'efficient';
 
+    // Feature 1: Live grid carbon intensity
+    const gridCo2Intensity = (() => {
+      if (c.co2_grid_intensity) return numState(h, c.co2_grid_intensity, null);
+      return null;
+    })();
+    const gridCo2IsGreen = (() => {
+      const val = c.co2_grid_intensity ? numState(h, c.co2_grid_intensity, null) : null;
+      if (val == null) return null;
+      return val < 100;
+    })();
+
+    // Feature 2: Heat pump / solar diverter watts
+    const heatPumpW = c.heat_pump_power ? toWatts(h, c.heat_pump_power) : 0;
+    const diverterW = c.diverter_power  ? toWatts(h, c.diverter_power)  : 0;
+
+    // Feature 4: Battery state-of-health estimator
+    const battSoh = (() => {
+      if (c.battery_cycles) {
+        const cycles = numState(h, c.battery_cycles, null);
+        if (cycles != null) {
+          const maxCycles = 1500; // conservative LFP
+          return Math.max(70, Math.round(100 - (cycles / maxCycles) * 20));
+        }
+      }
+      if (c.battery_purchase_date) {
+        const purchase = new Date(c.battery_purchase_date);
+        const ageYears = (Date.now() - purchase) / (1000 * 60 * 60 * 24 * 365.25);
+        return Math.max(70, Math.round(100 - ageYears * 2));
+      }
+      return null;
+    })();
+
+    // Feature 12: Bill projection
+    const billProjection = (() => {
+      const budget = parseFloat(c.monthly_budget) || 0;
+      const netDay = (() => {
+        const imp = (_rawImport != null && _rawImport < 300) ? _rawImport : null;
+        const exp = (_rawExport != null && _rawExport < 300) ? _rawExport : null;
+        if (imp == null || price == null) return null;
+        const fi = parseFloat(c.feed_in_rate) || 0;
+        return imp * price - (exp||0) * price * fi;
+      })();
+      if (netDay == null || netDay < 0) return null;
+      const dayOfMonth = new Date().getDate();
+      const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+      const projected = netDay / dayOfMonth * daysInMonth;
+      return { projected, budget, dayOfMonth, daysInMonth, netDay };
+    })();
+
     return {
       solarW, gridW, gridImpW, gridExpW, houseW, v2cW, isExp, price, costH,
       solarToday, fcToday, fcTomorrow, chargerActive,
@@ -1316,6 +1441,14 @@ class SmoothEnergyCard extends HTMLElement {
       liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
       v2gActive,
       co2SavedKg, co2RateGpm, battHealth, ratedKwh, loadLabel,
+      // Feature 1
+      gridCo2Intensity, gridCo2IsGreen,
+      // Feature 2
+      heatPumpW, diverterW,
+      // Feature 4
+      battSoh,
+      // Feature 12
+      billProjection,
       // #12 weather
       weatherCondition: c.weather_entity ? strState(h, c.weather_entity) : null,
       weatherTemp: c.weather_entity ? (haState(h, c.weather_entity)?.attributes?.temperature ?? null) : null,
@@ -1568,18 +1701,62 @@ class SmoothEnergyCard extends HTMLElement {
       if (co2El) co2El.innerHTML = this._buildCo2Banner(d);
     }
 
-    // Records
+    // Records — preserve <details> open state to avoid collapse on every patch
     this._updateRecords(d);
     if (!hide.has('records')) {
       const recEl = card.querySelector('[data-uid="records"]');
-      if (recEl) recEl.innerHTML = this._buildRecords();
+      if (recEl) {
+        const recWasOpen = recEl.querySelector('details')?.open ?? false;
+        recEl.innerHTML = this._buildRecords();
+        if (recWasOpen) { const det = recEl.querySelector('details'); if (det) det.open = true; }
+      }
     }
 
-    // Event log
+    // Event log — preserve <details> open state to avoid collapse on every patch
     if (!hide.has('event_log')) {
       const evtEl = card.querySelector('[data-uid="event-log"]');
-      if (evtEl) evtEl.innerHTML = this._buildEventLog();
+      if (evtEl) {
+        const evtWasOpen = evtEl.querySelector('details')?.open ?? false;
+        evtEl.innerHTML = this._buildEventLog();
+        if (evtWasOpen) { const det = evtEl.querySelector('details'); if (det) det.open = true; }
+      }
     }
+
+    // Feature 1: CO₂ intensity badge
+    const co2BadgeEl = card.querySelector('[data-uid="co2-badge"]');
+    if (co2BadgeEl) co2BadgeEl.innerHTML = this._buildCo2Badge(d);
+
+    // Feature 4: Battery SoH
+    const battSohEl = card.querySelector('[data-uid="batt-soh"]');
+    if (battSohEl) battSohEl.innerHTML = this._buildBattSoh(d);
+
+    // Feature 6: Solcast overlay
+    const solcastEl = card.querySelector('[data-uid="solcast-overlay"]');
+    if (solcastEl) solcastEl.innerHTML = this._buildSolcastOverlay(d);
+
+    // Feature 7: Revenue ticker
+    const revTickerEl = card.querySelector('[data-uid="revenue-ticker"]');
+    if (revTickerEl) revTickerEl.innerHTML = this._buildRevenueTicker(d);
+
+    // Feature 9: Demand heatmap + hourly log update
+    this._updateHourlyLog(d);
+    if (!hide.has('heatmap')) {
+      const heatmapEl = card.querySelector('[data-uid="demand-heatmap"]');
+      if (heatmapEl) {
+        const hmWasOpen = heatmapEl.querySelector('details')?.open ?? false;
+        heatmapEl.innerHTML = this._buildDemandHeatmap();
+        if (hmWasOpen) { const det = heatmapEl.querySelector('details'); if (det) det.open = true; }
+      }
+    }
+
+    // Feature 10: Diverter tracker
+    const diverterEl = card.querySelector('[data-uid="diverter-tracker"]');
+    if (diverterEl) diverterEl.innerHTML = this._buildDiverterTracker(d);
+
+    // Feature 11: Export streak
+    this._updateExportStreak(d);
+    const exportStreakEl = card.querySelector('[data-uid="export-streak"]');
+    if (exportStreakEl) exportStreakEl.innerHTML = this._buildExportStreak();
 
     // Particles + cable
     this._clearParticles();
@@ -1935,30 +2112,41 @@ class SmoothEnergyCard extends HTMLElement {
     </div>`;
   }
 
-  // #4 Tariff price forecast chart
+  // #4 Tariff price forecast chart (enhanced: up to 24h, current hour indicator, cheapest window)
   _buildPriceChart(d) {
     const prices = d.tariffPrices;
     if (!prices || prices.length < 2) return '';
     const nowH = new Date().getHours();
-    const upcoming = [...prices.slice(nowH), ...prices.slice(0, nowH)].slice(0, 12);
+    // Show up to 24 bars — use all available data starting from current hour
+    const maxBars = Math.min(24, prices.length);
+    const upcoming = [...prices.slice(nowH), ...prices.slice(0, nowH)].slice(0, maxBars);
     if (upcoming.length < 2) return '';
     const W = 340, H = 36, barW = Math.floor(W / upcoming.length) - 1;
     const maxP = Math.max(...upcoming) || 1;
+    const minP = Math.min(...upcoming);
     const bars = upcoming.map((p, i) => {
       const barH = Math.max(3, Math.round((p / maxP) * H));
       const x = i * (barW + 1);
       const y = H - barH;
       const isNow = i === 0;
       const col = p > maxP * 0.75 ? '#f87171' : p < maxP * 0.35 ? '#34d399' : '#60a5fa';
+      // Current hour gets a bright border highlight
+      const nowBorder = isNow ? `<rect x="${x-1}" y="${y-1}" width="${barW+2}" height="${barH+2}" rx="2" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.9"/>` : '';
       return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="${isNow?1:0.65}"/>
-        ${isNow ? `<rect x="${x}" y="${y-2}" width="${barW}" height="2" rx="1" fill="${col}"/>` : ''}`;
+        ${isNow ? `<rect x="${x}" y="${y-2}" width="${barW}" height="2" rx="1" fill="${col}"/>` : ''}
+        ${nowBorder}`;
     }).join('');
+    // "Now" arrow indicator
+    const nowX = barW / 2;
+    const nowArrow = `<polygon points="${nowX-4},${H+13} ${nowX+4},${H+13} ${nowX},${H+8}" fill="#60a5fa" opacity="0.8"/>`;
     const labels = upcoming.map((p, i) => {
       const h = (nowH + i) % 24;
-      if (i % 3 !== 0) return '';
+      // Show label every 3h, or every 6h if 24 bars
+      const interval = upcoming.length > 12 ? 6 : 3;
+      if (i % interval !== 0) return '';
       return `<text x="${i*(barW+1)+barW/2}" y="${H+9}" text-anchor="middle" font-size="7" fill="#3d5280">${h}h</text>`;
     }).join('');
-    // Feature H: cheapest 2h window
+    // Cheapest 2h window
     let cheapChip = '';
     if (upcoming.length >= 2) {
       let best = null, bestAvg = Infinity;
@@ -1970,13 +2158,15 @@ class SmoothEnergyCard extends HTMLElement {
         const h1 = (nowH + best) % 24;
         const h2 = (nowH + best + 2) % 24;
         const hStr = `${String(h1).padStart(2,'0')}:00–${String(h2).padStart(2,'0')}:00`;
-        cheapChip = `<div class="cheap-window-chip">🔌 Optimal charge window: ${hStr} · avg €${bestAvg.toFixed(3)}/kWh</div>`;
+        const isNow = best === 0;
+        cheapChip = `<div class="cheap-window-chip">🔌 ${isNow ? 'Cheapest now!' : 'Optimal window:'} ${hStr} · avg €${bestAvg.toFixed(3)}/kWh</div>`;
       }
     }
+    const hoursLabel = upcoming.length > 12 ? `next ${upcoming.length}h` : `next ${upcoming.length}h`;
     return `<div class="price-chart">
-      <div class="price-chart-title">⚡ Tariff next 12h</div>
-      <svg viewBox="0 0 ${W} ${H+12}" height="${H+12}">
-        ${bars}${labels}
+      <div class="price-chart-title">⚡ Tariff ${hoursLabel}</div>
+      <svg viewBox="0 0 ${W} ${H+15}" height="${H+15}">
+        ${bars}${labels}${nowArrow}
       </svg>
     </div>${cheapChip}`;
   }
@@ -2346,12 +2536,15 @@ class SmoothEnergyCard extends HTMLElement {
         <div data-uid="daily-summary-tab">${this._buildDailySummary(d)}</div>
       </div>
       <div data-uid="daily-summary" style="display:none"></div>
+      <div data-uid="co2-badge">${this._buildCo2Badge(d)}</div>
       <div data-uid="savings-counter">${!hide.has('savings') ? this._buildSavingsCounter(d) : ''}</div>
       <div data-uid="yday-chips">${!hide.has('yday_chips') ? this._buildYesterdayChips(d) : ''}</div>
       ${!hide.has('co2') ? `<div data-uid="co2-banner">${this._buildCo2Banner(d)}</div>` : ''}
+      <div data-uid="export-streak">${this._buildExportStreak()}</div>
       ${!hide.has('price_chart') ? `<div data-uid="price-chart">${this._buildPriceChart(d)}</div>` : '<div data-uid="price-chart"></div>'}
       ${!hide.has('eco_badges') ? `<div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>` : '<div data-uid="eco-badges"></div>'}
       <div data-uid="charging-reco">${!hide.has('reco') ? this._buildChargingReco(d) : ''}</div>
+      <div data-uid="revenue-ticker">${this._buildRevenueTicker(d)}</div>
       ${!hide.has('budget') ? `<div data-uid="budget-tracker">${this._buildBudgetTracker(d)}</div>` : '<div data-uid="budget-tracker"></div>'}
       ${!hide.has('power_chart') ? `<div data-uid="power-chart">${this._buildPowerChart()}</div>` : '<div data-uid="power-chart"></div>'}
       ${!hide.has('ev_optimizer') ? `<div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>` : '<div data-uid="ev-optimizer"></div>'}
@@ -2365,8 +2558,12 @@ class SmoothEnergyCard extends HTMLElement {
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
       </div>` : ''}
+      <div data-uid="batt-soh">${this._buildBattSoh(d)}</div>
       ${!hide.has('devices') ? `<div class="section-title">${this._t('dev_section')}</div>
       <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>` : ''}
+      <div data-uid="diverter-tracker">${this._buildDiverterTracker(d)}</div>
+      <div data-uid="solcast-overlay">${this._buildSolcastOverlay(d)}</div>
+      <div data-uid="demand-heatmap">${!hide.has('heatmap') ? this._buildDemandHeatmap() : ''}</div>
       ${!hide.has('records') ? `<div data-uid="records">${this._buildRecords()}</div>` : ''}
       <div data-uid="event-log">${!hide.has('event_log') ? this._buildEventLog() : ''}</div>
       ${!hide.has('forecast') ? `<div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>` : '<div data-uid="forecast-row"></div>'}`;
@@ -2642,6 +2839,21 @@ class SmoothEnergyCard extends HTMLElement {
         <text x="${x}" y="${y-4}" font-size="13" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${devEmoji[dev.icon] || '🔌'}</text>
         <text x="${x}" y="${y+10}" class="n-name" style="font-size:7px" pointer-events="none">${fmtW(dev.w)}</text>
       `).join('')}
+      ${(() => {
+        const hpW = (d.heatPumpW || 0) + (d.diverterW || 0);
+        const showHp = hpW > 20;
+        if (!showHp) return '';
+        const hpP = {x:300, y:175};
+        const hpPath = `M${hP.x},${hP.y} C${hP.x+40},${hP.y+40} ${hpP.x},${hpP.y-40} ${hpP.x},${hpP.y}`;
+        const hpIcon = d.heatPumpW > 20 ? '🔥' : '💧';
+        return `
+          <path d="${hpPath}" class="path-hp" fill="none" stroke="rgba(251,146,60,0.4)" stroke-width="2" stroke-dasharray="4 3"/>
+          <circle cx="${hpP.x}" cy="${hpP.y}" r="22" fill="url(#glow-s)" opacity="0.3"/>
+          <circle cx="${hpP.x}" cy="${hpP.y}" r="20" fill="rgba(15,20,40,0.85)" stroke="rgba(251,146,60,0.5)" stroke-width="1.5"/>
+          <text x="${hpP.x}" y="${hpP.y}" text-anchor="middle" dominant-baseline="middle" font-size="16" fill="#fb923c">${hpIcon}</text>
+          <text x="${hpP.x}" y="${hpP.y+30}" text-anchor="middle" fill="rgba(251,146,60,0.9)" font-size="9" font-weight="600">${fmtW(hpW)}</text>
+        `;
+      })()}
     </svg>`;
   }
 
@@ -2680,6 +2892,9 @@ class SmoothEnergyCard extends HTMLElement {
       : (ev.isCharging ? `<div class="charging-badge-solo">⚡ Charging</div>` : '');
     const etaLine = (ev.isCharging && ev.eta)
       ? `<div class="ev-eta">🏁 ${ev.eta}${ev.targetSoc!=null?' → '+ev.targetSoc+'%':''}</div>` : '';
+    // Feature 8: Solar-only ETA planner
+    const solarPlanLine = (ev.solarOnlyEta != null && !ev.isCharging && (ev.solarW || 0) > 500)
+      ? `<div class="ev-solar-plan">☀️ Solar-only: ~${fmtEta(ev.solarOnlyEta) || Math.round(ev.solarOnlyEta*60)+'m'}</div>` : '';
     // Cost display: show session total (grid-only) when possible, else hourly rate
     let costLine = '';
     if (ev.isCharging) {
@@ -2715,6 +2930,7 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
         <div class="ev-range" data-tip="${this._t('tip_range', ev.rng, Math.round(ev.rng / 6))}">${ev.rng} <em>km</em></div>
         ${etaLine}
+        ${solarPlanLine}
         ${costLine}
         ${depLine}
         ${ev.battHealth != null ? `<div class="ev-health">🔋 ${Math.round(ev.battHealth)}% health</div>` : ''}
@@ -2863,19 +3079,32 @@ class SmoothEnergyCard extends HTMLElement {
       ? Math.round(d.battSoc * (parseFloat(this._config.battery_rated_capacity) || 10) * 0.01 / (d.houseW / 1000) * 10) / 10
       : null;
     const runwayTxt = batH != null ? `Battery runway: ~${batH}h at current load` : 'Battery status unknown';
+    // Feature 5: Detailed battery runway countdown
+    let runwayStr = '';
+    if (d.battSoc != null && d.hasBattery) {
+      const ratedKwh = parseFloat(this._config.battery_rated_capacity) || 0;
+      if (ratedKwh > 0 && d.houseW > 0) {
+        const kwhLeft = ratedKwh * d.battSoc / 100;
+        const hours = kwhLeft / (d.houseW / 1000);
+        const hh = Math.floor(hours);
+        const mm = Math.round((hours - hh) * 60);
+        runwayStr = `<div class="outage-runway">🔋 Battery runway: ~${hh}h ${mm}m at current load</div>`;
+      }
+    }
     return `<div class="grid-outage-banner">
       <div class="grid-outage-icon">⚡</div>
       <div class="grid-outage-body">
         <div class="grid-outage-title">🔌 ISLANDING MODE — Grid offline</div>
         <div class="grid-outage-sub">${runwayTxt}</div>
+        ${runwayStr}
       </div>
     </div>`;
   }
 
-  // ─── Feature: Monthly budget tracker ──────────────────────────────────────
+  // ─── Feature: Monthly budget tracker (enhanced with Feature 12 bill projection) ──
   _buildBudgetTracker(d) {
-    const budget = parseFloat(this._config.monthly_budget);
-    if (!budget || budget <= 0) return '';
+    const budget = parseFloat(this._config.monthly_budget) || 0;
+    const hasBudget = budget > 0;
     // Update daily cost log in localStorage
     const today = new Date().toISOString().slice(0, 10);
     const thisMonth = today.slice(0, 7);
@@ -2892,10 +3121,42 @@ class SmoothEnergyCard extends HTMLElement {
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const projected = dayOfMonth > 0 ? (monthSpent / dayOfMonth) * daysInMonth : 0;
-    const pct = Math.min(100, (monthSpent / budget) * 100);
-    const projPct = Math.min(100, (projected / budget) * 100);
-    const barCol = pct >= 100 ? '#f87171' : pct >= 80 ? '#f59e0b' : '#34d399';
     const daysLeft = daysInMonth - dayOfMonth;
+
+    // Feature 12: use billProjection from _data if available, else fall back to log-based projection
+    const projAmt = d.billProjection ? d.billProjection.projected : projected;
+    const daysPctElapsed = Math.round((dayOfMonth / daysInMonth) * 100);
+    const projPctOfBudget = hasBudget ? Math.round((projAmt / budget) * 100) : null;
+
+    // Determine status
+    let statusStr = '';
+    if (hasBudget && projAmt != null) {
+      if (projAmt <= budget * 0.9) statusStr = `<span style="color:#34d399;font-weight:600">✓ On track</span>`;
+      else if (projAmt <= budget) statusStr = `<span style="color:#fbbf24;font-weight:600">⚠ Near budget</span>`;
+      else statusStr = `<span style="color:#f87171;font-weight:600">⚠ Over budget</span>`;
+    }
+
+    // Show projection even without budget
+    const projRow = projAmt > 0 ? `<div class="budget-footer" style="margin-top:4px">
+      <span class="budget-days">${dayOfMonth}/${daysInMonth} days (${daysPctElapsed}%)</span>
+      <span class="${hasBudget && projAmt > budget ? 'budget-over' : 'budget-proj'}">Projected: ${fmtEur(projAmt)}${statusStr ? ' · ' : ''}${statusStr}</span>
+    </div>` : '';
+
+    if (!hasBudget) {
+      // Show projection-only block when no budget configured but we have data
+      if (monthSpent <= 0 && (!d.billProjection || d.billProjection.projected <= 0)) return '';
+      return `<div class="budget-tracker">
+        <div class="budget-header">
+          <span class="budget-lbl">📊 Month cost estimate</span>
+          <span class="budget-val">${fmtEur(monthSpent)} spent</span>
+        </div>
+        ${projRow}
+      </div>`;
+    }
+
+    const pct = Math.min(100, (monthSpent / budget) * 100);
+    const projPct = Math.min(100, (projAmt / budget) * 100);
+    const barCol = pct >= 100 ? '#f87171' : pct >= 80 ? '#f59e0b' : '#34d399';
     return `<div class="budget-tracker">
       <div class="budget-header">
         <span class="budget-lbl">💶 Monthly budget</span>
@@ -2905,9 +3166,10 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="budget-bar" style="width:${pct.toFixed(1)}%;background:${barCol}"></div>
         ${projPct > pct + 1 ? `<div class="budget-proj-line" style="left:${projPct.toFixed(1)}%"></div>` : ''}
       </div>
+      ${projRow}
       <div class="budget-footer">
         <span class="budget-days">${daysLeft}d remaining</span>
-        <span class="${projected > budget ? 'budget-over' : 'budget-proj'}">Projected: ${fmtEur(projected)}</span>
+        ${projPctOfBudget != null ? `<span class="budget-proj" style="font-size:0.65em">${projPctOfBudget}% of budget</span>` : ''}
       </div>
     </div>`;
   }
@@ -3554,6 +3816,164 @@ class SmoothEnergyCard extends HTMLElement {
     const last  = `${(x0+W).toFixed(1)},${(y0+H).toFixed(1)}`;
     return `<polygon points="${first} ${coords} ${last}" fill="${color}" opacity="0.12"/>
             <polyline points="${coords}" fill="none" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>`;
+  }
+
+  // ─── Feature 1: Live grid carbon intensity badge ────────────────────────────
+  _buildCo2Badge(d) {
+    const val = d.gridCo2Intensity;
+    if (val == null) return '';
+    const isGreen = val < 100;
+    const isAmber = val >= 100 && val < 250;
+    const cls = isGreen ? 'co2-badge-green' : isAmber ? 'co2-badge-amber' : 'co2-badge-red';
+    const icon = isGreen ? '🌱' : isAmber ? '⚡' : '🏭';
+    const label = isGreen ? 'Clean grid' : isAmber ? 'Mixed grid' : 'Dirty grid';
+    const chargeTip = isGreen ? ' — great time to charge!' : val >= 250 ? ' — avoid grid use if possible' : '';
+    return `<div class="co2-intensity-badge ${cls}" data-tip="Grid carbon intensity: ${Math.round(val)} gCO₂/kWh${chargeTip}">${icon} ${Math.round(val)} g<span class="co2-unit">CO₂/kWh</span> <span class="co2-label">${label}</span></div>`;
+  }
+
+  // ─── Feature 4: Battery State-of-Health ─────────────────────────────────────
+  _buildBattSoh(d) {
+    if (!d.hasBattery || d.battSoh == null) return '';
+    const soh = d.battSoh;
+    const cls = soh >= 90 ? 'soh-good' : soh >= 80 ? 'soh-ok' : 'soh-warn';
+    const bar = Math.round(soh);
+    return `<div class="batt-soh-wrap"><div class="soh-label">🔋 Battery health: <strong>${soh}%</strong></div><div class="soh-bar-track"><div class="soh-bar ${cls}" style="width:${bar}%"></div></div></div>`;
+  }
+
+  // ─── Feature 6: Solcast hourly production overlay ───────────────────────────
+  _buildSolcastOverlay(d) {
+    const fc = this._hass?.states?.[this._config?.solar_forecast_today];
+    if (!fc) return '';
+    const slots = fc.attributes?.detailedForecast || fc.attributes?.hourly_forecast || fc.attributes?.forecast || null;
+    if (!Array.isArray(slots) || slots.length < 4) return '';
+    const now = new Date();
+    const vals = slots.map(s => {
+      const t = new Date(s.period_start || s.datetime || s.time || 0);
+      return { h: t.getHours(), v: parseFloat(s.pv_estimate || s.value || s.power || 0) };
+    }).filter(s => s.v >= 0).slice(0, 24);
+    if (!vals.length) return '';
+    const max = Math.max(...vals.map(s => s.v), 0.1);
+    const W = 320, H = 40;
+    const barW = Math.floor(W / vals.length) - 1;
+    const bars = vals.map((s, i) => {
+      const bH = Math.round((s.v / max) * H);
+      const isCurrent = s.h === now.getHours();
+      const col = isCurrent ? '#fbbf24' : 'rgba(251,191,36,0.35)';
+      return `<rect x="${i*(barW+1)}" y="${H-bH}" width="${barW}" height="${bH}" fill="${col}" rx="1"/>`;
+    }).join('');
+    return `<div class="solcast-overlay" data-tip="Solcast hourly forecast">
+      <div class="solcast-title">☀️ Hourly forecast</div>
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars}</svg>
+      <div class="solcast-range"><span>${vals[0]?.h ?? ''}h</span><span>${vals[vals.length-1]?.h ?? ''}h</span></div>
+    </div>`;
+  }
+
+  // ─── Feature 7: Earned revenue live ticker ──────────────────────────────────
+  _buildRevenueTicker(d) {
+    if (!d.isExp || d.gridExpW < 10 || d.price == null) return '';
+    const feedIn = parseFloat(this._config.feed_in_rate) || 0;
+    if (feedIn <= 0) return '';
+    const rateH = (d.gridExpW / 1000) * d.price * feedIn;
+    const rateMin = rateH / 60;
+    return `<div class="revenue-ticker">
+      <span class="rev-icon">💰</span>
+      <span class="rev-text">Earning <strong>${rateH.toFixed(4)} €/h</strong></span>
+      <span class="rev-sub">${(rateMin).toFixed(5)} €/min · ${fmtW(d.gridExpW)} @ ${(d.price*feedIn).toFixed(3)} €/kWh</span>
+    </div>`;
+  }
+
+  // ─── Feature 9: Peak-demand clock heatmap ──────────────────────────────────
+  _updateHourlyLog(d) {
+    try {
+      const now = new Date();
+      const key = `${now.getDay()}_${now.getHours()}`;
+      const raw = localStorage.getItem('sec-hourly-log');
+      const log = raw ? JSON.parse(raw) : {};
+      const slot = log[key] || { sum: 0, count: 0 };
+      slot.sum += d.houseW;
+      slot.count++;
+      log[key] = slot;
+      localStorage.setItem('sec-hourly-log', JSON.stringify(log));
+    } catch(e) {}
+  }
+
+  _buildDemandHeatmap() {
+    try {
+      const raw = localStorage.getItem('sec-hourly-log');
+      if (!raw) return '';
+      const log = JSON.parse(raw);
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      let maxAvg = 0;
+      for (let dy=0;dy<7;dy++) for (let hr=0;hr<24;hr++) {
+        const s = log[`${dy}_${hr}`];
+        if (s && s.count > 0) maxAvg = Math.max(maxAvg, s.sum/s.count);
+      }
+      if (maxAvg < 50) return '';
+      const cells = [];
+      for (let dy=0;dy<7;dy++) {
+        cells.push(`<div class="hm-day-label">${days[dy]}</div>`);
+        for (let hr=0;hr<24;hr++) {
+          const s = log[`${dy}_${hr}`];
+          const avg = s && s.count > 0 ? s.sum/s.count : 0;
+          const pct = maxAvg > 0 ? avg/maxAvg : 0;
+          const r = Math.round(248*pct+30*(1-pct));
+          const g = Math.round(113*pct+200*(1-pct));
+          const b = Math.round(113*pct+80*(1-pct));
+          const col = `rgba(${r},${g},${b},${(0.2+pct*0.7).toFixed(2)})`;
+          cells.push(`<div class="hm-cell" style="background:${col}" data-tip="${days[dy]} ${hr}h: ~${Math.round(avg)}W avg"></div>`);
+        }
+      }
+      return `<details class="heatmap-panel"><summary class="hm-title">📊 Weekly Demand Heatmap</summary>
+        <div class="heatmap-wrap">
+          <div class="hm-hour-labels"><span></span>${Array.from({length:24},(_,i)=>`<span>${i}</span>`).join('')}</div>
+          <div class="hm-grid">${cells.join('')}</div>
+        </div>
+      </details>`;
+    } catch(e) { return ''; }
+  }
+
+  // ─── Feature 10: Solar divert tracker ──────────────────────────────────────
+  _buildDiverterTracker(d) {
+    if (!this._config.diverter_power && !this._config.diverter_today_kwh) return '';
+    const liveW = d.diverterW || 0;
+    const todayKwh = this._config.diverter_today_kwh ? numState(this._hass, this._config.diverter_today_kwh, null) : null;
+    if (liveW < 20 && todayKwh == null) return '';
+    const liveStr = liveW > 20 ? `<span class="div-live">☀️→💧 ${fmtW(liveW)} live</span>` : '';
+    const todayStr = todayKwh != null ? `<span class="div-today">${fmtKwh(todayKwh)} today</span>` : '';
+    const savingsStr = (todayKwh != null && d.price != null) ? `<span class="div-save">≈€${(todayKwh * d.price).toFixed(2)} saved</span>` : '';
+    return `<div class="diverter-tracker">${liveStr}${todayStr}${savingsStr}</div>`;
+  }
+
+  // ─── Feature 11: Energy export streak counter ───────────────────────────────
+  _updateExportStreak(d) {
+    if (d.exportKwhDay == null || d.exportKwhDay <= 0) return;
+    try {
+      const today = new Date().toISOString().slice(0,10);
+      const raw = localStorage.getItem('sec-export-streak');
+      const s = raw ? JSON.parse(raw) : {streak:0, best:0, lastDate:null};
+      if (s.lastDate === today) return;
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+      const yStr = yesterday.toISOString().slice(0,10);
+      if (s.lastDate === yStr) {
+        s.streak = (s.streak||0) + 1;
+      } else {
+        s.streak = 1;
+      }
+      s.best = Math.max(s.best||0, s.streak);
+      s.lastDate = today;
+      localStorage.setItem('sec-export-streak', JSON.stringify(s));
+    } catch(e) {}
+  }
+
+  _buildExportStreak() {
+    try {
+      const raw = localStorage.getItem('sec-export-streak');
+      if (!raw) return '';
+      const s = JSON.parse(raw);
+      if (!s.streak || s.streak < 2) return '';
+      const isBest = s.streak >= s.best;
+      return `<div class="export-streak ${isBest?'streak-best':''}">⚡ ${s.streak}-day export streak${isBest?' 🏆 Personal best!':s.best > s.streak ? ` (best: ${s.best})` : ''}</div>`;
+    } catch(e) { return ''; }
   }
 
   _buildSparkSvg(pts, color, W = 60, H = 18) {
