@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.5
+ * Smooth Energy Card v1.7.6
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.7.5';
+const VERSION = '1.7.6';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -2204,6 +2204,21 @@ class SmoothEnergyCardEditor extends HTMLElement {
     this._render();
   }
 
+  _setCharger(idx, key, value) {
+    const chargers = (this._config.chargers || []).map((ch, i) => i === idx ? { ...ch, [key]: value } : ch);
+    this._set('chargers', chargers);
+  }
+  _addCharger() {
+    const chargers = [...(this._config.chargers || []), { name: 'New Charger', power: '', session_energy: '', image: '' }];
+    this._set('chargers', chargers);
+    this._render();
+  }
+  _removeCharger(idx) {
+    const chargers = (this._config.chargers || []).filter((_, i) => i !== idx);
+    this._set('chargers', chargers);
+    this._render();
+  }
+
   _setDevice(idx, key, value) {
     const devices = (this._config.devices || []).map((d, i) => i === idx ? { ...d, [key]: value } : d);
     this._set('devices', devices);
@@ -2223,6 +2238,7 @@ class SmoothEnergyCardEditor extends HTMLElement {
     const c = this._config;
     const evs = c.evs || [];
     const devices = c.devices || [];
+    const chargers = c.chargers || [];
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -2437,6 +2453,17 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <input type="text" data-key="v2c_image" value="${(c.v2c_image||'').replace(/"/g,'&quot;')}" placeholder="/local/images/v2ctrydan-1.png">
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- ADDITIONAL CHARGERS -->
+        <div class="section">
+          <div class="section-head">
+            <h3>⚡ Additional Chargers</h3>
+          </div>
+          <div class="section-body" id="chargers-body">
+            ${chargers.map((ch, i) => this._buildChargerForm(ch, i)).join('')}
+            <button class="btn-add" data-action="add-charger">+ Add Charger</button>
           </div>
         </div>
 
@@ -2663,6 +2690,36 @@ class SmoothEnergyCardEditor extends HTMLElement {
       </div>`;
   }
 
+  _buildChargerForm(ch, i) {
+    return `
+      <div class="list-item" data-ch-index="${i}">
+        <div class="list-item-head">
+          <span class="list-item-title">⚡ ${ch.name || 'Charger ' + (i+1)}</span>
+          <button class="btn-remove" data-action="remove-charger" data-index="${i}" title="Remove">✕</button>
+        </div>
+        <div class="row cols-2">
+          <div class="field">
+            <label>Display Name</label>
+            <input type="text" data-ch="${i}" data-ch-key="name" value="${(ch.name||'').replace(/"/g,'&quot;')}" placeholder="Charger name">
+          </div>
+          <div class="field">
+            <label>Image URL</label>
+            <input type="text" data-ch="${i}" data-ch-key="image" value="${(ch.image||'').replace(/"/g,'&quot;')}" placeholder="/local/images/charger.png">
+          </div>
+        </div>
+        <div class="row cols-2">
+          <div class="field">
+            <label>Power sensor (W or kW)</label>
+            <ha-entity-picker data-ch="${i}" data-ch-key="power" allow-custom-entity></ha-entity-picker>
+          </div>
+          <div class="field">
+            <label>Session energy sensor (kWh)</label>
+            <ha-entity-picker data-ch="${i}" data-ch-key="session_energy" allow-custom-entity></ha-entity-picker>
+          </div>
+        </div>
+      </div>`;
+  }
+
   _buildDeviceForm(dev, i) {
     const iconOptions = DEVICE_ICONS.map(ic =>
       `<option value="${ic.value}"${dev.icon===ic.value?' selected':''}>${ic.label}</option>`
@@ -2737,6 +2794,20 @@ class SmoothEnergyCardEditor extends HTMLElement {
       el.addEventListener('change', () => { this._setEv(idx, key, el.type === 'number' ? parseFloat(el.value) : el.value); });
     });
 
+    // Charger entity pickers
+    sr.querySelectorAll('ha-entity-picker[data-ch]').forEach(el => {
+      const idx = parseInt(el.dataset.ch), key = el.dataset.chKey;
+      if (this._hass) el.hass = this._hass;
+      el.value = ((c.chargers || [])[idx] || {})[key] || '';
+      el.addEventListener('value-changed', e => { this._setCharger(idx, key, e.detail.value); });
+    });
+
+    // Charger text inputs
+    sr.querySelectorAll('input[data-ch]').forEach(el => {
+      const idx = parseInt(el.dataset.ch), key = el.dataset.chKey;
+      el.addEventListener('change', () => { this._setCharger(idx, key, el.value); });
+    });
+
     // Device entity pickers
     sr.querySelectorAll('ha-entity-picker[data-dev]').forEach(el => {
       const idx = parseInt(el.dataset.dev);
@@ -2755,9 +2826,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
     sr.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action, idx = btn.dataset.index !== undefined ? parseInt(btn.dataset.index) : null;
-        if (action === 'add-ev')       this._addEv();
-        if (action === 'remove-ev')    this._removeEv(idx);
-        if (action === 'add-device')   this._addDevice();
+        if (action === 'add-ev')        this._addEv();
+        if (action === 'remove-ev')     this._removeEv(idx);
+        if (action === 'add-charger')   this._addCharger();
+        if (action === 'remove-charger') this._removeCharger(idx);
+        if (action === 'add-device')    this._addDevice();
         if (action === 'remove-device') this._removeDevice(idx);
       });
     });
