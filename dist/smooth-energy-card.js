@@ -524,8 +524,14 @@ const CSS = `
   .n-name  { font-size:9.5px;  font-weight:700; fill:rgba(255,255,255,0.75); text-anchor:middle; letter-spacing:0.8px; dominant-baseline:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
   .n-power { font-size:12.5px; font-weight:800; fill:white; text-anchor:middle; dominant-baseline:auto; filter:drop-shadow(0 1px 3px rgba(0,0,0,0.95)); }
   .c-solar{fill:#fbbf24;} .c-house{fill:#60a5fa;} .c-grid-imp{fill:#f87171;} .c-grid-exp{fill:#34d399;} .c-v2c{fill:#c084fc;} .c-idle{fill:#2a3558;}
-  .track { fill:none; stroke-width:2.5; stroke-linecap:round; opacity:0.25; }
+  .track { fill:none; stroke-width:2.5; stroke-linecap:round; opacity:0.35; }
   .t-solar{stroke:#fbbf24;} .t-imp{stroke:#f87171;} .t-exp{stroke:#34d399;} .t-v2c{stroke:#c084fc;}
+  @keyframes grid-stress-pulse { 0%,100%{stroke-opacity:0.25;stroke-width:1.5} 50%{stroke-opacity:0.85;stroke-width:3.5} }
+  .grid-stress-ring { animation:grid-stress-pulse 0.75s ease-in-out infinite; fill:none; stroke:#ef4444; }
+  .day-progress-arc { fill:none; stroke:#fbbf24; stroke-width:2.5; stroke-linecap:round; opacity:0.7; }
+  @keyframes eta-ring-spin { 0%{stroke-dashoffset:0} 100%{stroke-dashoffset:-138} }
+  .eta-ring-spin { animation:eta-ring-spin 2.5s linear infinite; }
+  .orb-glass-rim { fill:none; stroke-width:1; }
   .v2c-ring-pulse { fill:none; stroke:#c084fc; stroke-width:2; opacity:0; animation:v2c-svg-pulse 1.6s ease-in-out infinite; }
   @keyframes v2c-svg-pulse { 0%{opacity:0.6;r:28} 100%{opacity:0;r:46} }
   .v2c-bolt-active { animation:bolt-blink 0.9s ease-in-out infinite alternate; }
@@ -1897,6 +1903,24 @@ class SmoothEnergyCard extends HTMLElement {
           <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.9"/>
           <stop offset="100%" stop-color="#f97316" stop-opacity="0.6"/>
         </linearGradient>
+        <linearGradient id="trk-sol" x1="${sP.x}" y1="${sP.y}" x2="${hP.x}" y2="${hP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#60a5fa"/>
+        </linearGradient>
+        <linearGradient id="trk-imp" x1="${gP.x}" y1="${gP.y}" x2="${hP.x}" y2="${hP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#f87171"/><stop offset="100%" stop-color="#60a5fa"/>
+        </linearGradient>
+        <linearGradient id="trk-exp" x1="${hP.x}" y1="${hP.y}" x2="${gP.x}" y2="${gP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#34d399"/>
+        </linearGradient>
+        <linearGradient id="trk-v2c" x1="${hP.x}" y1="${hP.y}" x2="${vP.x}" y2="${vP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#c084fc"/>
+        </linearGradient>
+        <linearGradient id="trk-v2g" x1="${vP.x}" y1="${vP.y}" x2="${hP.x}" y2="${hP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#60a5fa"/>
+        </linearGradient>
+        <linearGradient id="trk-batt" x1="${hP.x}" y1="${hP.y}" x2="${bP.x}" y2="${bP.y}" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#34d399"/>
+        </linearGradient>
       </defs>
       ${sun ? `
         <path d="M 20,100 Q 180,15 340,100" fill="none"
@@ -1910,25 +1934,39 @@ class SmoothEnergyCard extends HTMLElement {
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R+14}" fill="url(#glow-g)"/>
       ${hasV2c && vOn?`<circle cx="${vP.x}" cy="${vP.y}" r="${Rv+20}" fill="url(#glow-v)"/>`:''}
-      ${sOn?`<path id="pSolar" class="track t-solar" d="${sPth}"/>`:''}
-      ${iOn?`<path id="pImp" class="track t-imp" d="${iPth}"/>`:''}
-      ${eOn?`<path id="pExp" class="track t-exp" d="${ePth}"/>`:''}
+      ${sOn?`<path id="pSolar" class="track" style="stroke:url(#trk-sol)" d="${sPth}"/>`:''}
+      ${iOn?`<path id="pImp" class="track" style="stroke:url(#trk-imp)" d="${iPth}"/>`:''}
+      ${eOn?`<path id="pExp" class="track" style="stroke:url(#trk-exp)" d="${ePth}"/>`:''}
       ${hasV2c && d.v2gActive
-        ? `<path id="pV2g" class="track" style="stroke:#34d399;opacity:0.35" d="${vPthV2g}"/>`
-        : (hasV2c && vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
+        ? `<path id="pV2g" class="track" style="stroke:url(#trk-v2g)" d="${vPthV2g}"/>`
+        : (hasV2c && vOn ? `<path id="pV2c" class="track" style="stroke:url(#trk-v2c)" d="${vPth}"/>` : '')
       }
       <g id="particles"></g>
+      ${(() => {
+        // #7 Day progress arc around solar orb
+        const pct = (d.fcToday > 0 && d.solarToday != null) ? Math.min(1, d.solarToday / d.fcToday) : 0;
+        if (pct <= 0.01) return '';
+        const Rarc = R + 8, sa = -Math.PI/2, ea = sa + pct * 2 * Math.PI;
+        const x1 = (sP.x + Rarc*Math.cos(sa)).toFixed(1), y1 = (sP.y + Rarc*Math.sin(sa)).toFixed(1);
+        const x2 = (sP.x + Rarc*Math.cos(ea)).toFixed(1), y2 = (sP.y + Rarc*Math.sin(ea)).toFixed(1);
+        const lg = pct > 0.5 ? 1 : 0;
+        return `<path class="day-progress-arc" d="M${x1},${y1} A${Rarc},${Rarc} 0 ${lg},1 ${x2},${y2}" filter="drop-shadow(0 0 3px #fbbf24)"/>`;
+      })()}
       <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':sun===null?'orb-sol-night':'orb-sol-off'})" stroke="${sOn?'#fbbf24':sun===null?'#4338ca':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" class="${sun===null?'solar-night':''}" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
+      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':sun===null?'0.15':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':sun===null?'#c7d2fe':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):sun===null?'🌙':'☀️'}</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+22}" class="n-name">${this._t('solar')}</text>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
       <text x="${hP.x}" y="${hP.y+7}" class="n-power">${fmtW(d.houseW)}</text>
       <text x="${hP.x}" y="${hP.y+22}" class="n-name">${this._t('house')}</text>
+      ${d.gridImpW>2000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+4}" class="grid-stress-ring"/>`:d.gridImpW>1000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+3}" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.4"/>`:''}
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5"/>
+      <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
       <text x="${gP.x}" y="${gP.y+7}" class="n-power">${fmtW(Math.abs(d.gridW))}</text>
@@ -1949,8 +1987,8 @@ class SmoothEnergyCard extends HTMLElement {
         `
       }` : ''}
       ${d.hasBattery ? `
-        ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
-        ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
+        ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:url(#trk-batt)" d="${bChgPth}"/>` : ''}
+        ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:url(#trk-batt)" d="${bDisPth}"/>` : ''}
         ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
         <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5" class="${d.battCharging?'batt-charging':d.battDischarging?'batt-discharging':''}"/>
         <circle cx="${bP.x-Rb*0.28}" cy="${bP.y-Rb*0.28}" r="${Rb*0.2}" fill="white" opacity="${(d.battCharging||d.battDischarging)?'0.28':'0.07'}"/>
@@ -2024,6 +2062,9 @@ class SmoothEnergyCard extends HTMLElement {
             <circle class="bat-bg" cx="28" cy="28" r="${r}"/>
             <circle class="bat-fill" cx="28" cy="28" r="${r}" stroke="${ev.isCharging?'#34d399':col}" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
             ${targetArc}
+            ${ev.isCharging?`<circle cx="28" cy="28" r="${r}" fill="none" stroke="#6ee7b7" stroke-width="2.5" stroke-dasharray="10 ${(circ-10).toFixed(2)}" class="eta-ring-spin" opacity="0.75"/>`:''}
+            ${ev.isCharging?`<circle cx="28" cy="28" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`:''}
+
           </svg>
           <div class="bat-text">${ev.bat}<sub>%</sub></div>
         </div>
