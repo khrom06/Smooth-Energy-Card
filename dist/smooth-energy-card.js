@@ -6,7 +6,7 @@
  * @version 1.7.5
  */
 
-const VERSION = '1.8.4';
+const VERSION = '1.8.5';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1761,6 +1761,7 @@ class SmoothEnergyCard extends HTMLElement {
     const bP={x:58,y:175};
     const Rb=26;
     const sOn=d.solarW>20, iOn=d.gridImpW>20, eOn=d.gridExpW>20, vOn=Math.abs(d.v2cW)>10;
+    const hasV2c = !!this._config.v2c_power;
     const sPth=`M${sP.x},${sP.y} C${(sP.x+hP.x)/2-10},${sP.y} ${(sP.x+hP.x)/2+10},${hP.y} ${hP.x},${hP.y}`;
     const iPth=`M${gP.x},${gP.y} C${(gP.x+hP.x)/2+10},${gP.y} ${(gP.x+hP.x)/2-10},${hP.y} ${hP.x},${hP.y}`;
     const ePth=`M${hP.x},${hP.y} C${(hP.x+gP.x)/2-10},${hP.y} ${(hP.x+gP.x)/2+10},${gP.y} ${gP.x},${gP.y}`;
@@ -1848,13 +1849,13 @@ class SmoothEnergyCard extends HTMLElement {
       ${sOn?`<circle cx="${sP.x}" cy="${sP.y}" r="${R+18}" fill="url(#glow-s)"/>`:''}
       <circle cx="${hP.x}" cy="${hP.y}" r="${R+22}" fill="url(#glow-h)"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R+14}" fill="url(#glow-g)"/>
-      ${vOn?`<circle cx="${vP.x}" cy="${vP.y}" r="${Rv+20}" fill="url(#glow-v)"/>`:''}
+      ${hasV2c && vOn?`<circle cx="${vP.x}" cy="${vP.y}" r="${Rv+20}" fill="url(#glow-v)"/>`:''}
       ${sOn?`<path id="pSolar" class="track t-solar" d="${sPth}"/>`:''}
       ${iOn?`<path id="pImp" class="track t-imp" d="${iPth}"/>`:''}
       ${eOn?`<path id="pExp" class="track t-exp" d="${ePth}"/>`:''}
-      ${d.v2gActive
+      ${hasV2c && d.v2gActive
         ? `<path id="pV2g" class="track" style="stroke:#34d399;opacity:0.35" d="${vPthV2g}"/>`
-        : (vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
+        : (hasV2c && vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
       }
       <g id="particles"></g>
       <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
@@ -1872,6 +1873,7 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
       <text x="${gP.x}" y="${gP.y+7}" class="n-power">${fmtW(Math.abs(d.gridW))}</text>
       <text x="${gP.x}" y="${gP.y+22}" class="n-name">${d.isExp?this._t('export'):this._t('import')}</text>
+      ${hasV2c ? `
       ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
       <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
@@ -1885,7 +1887,7 @@ class SmoothEnergyCard extends HTMLElement {
                 ${vSolarPct>0?`<text x="${vP.x}" y="${vP.y+21}" class="n-name" style="font-size:7px">☀️${vSolarPct}% free</text>`:''}`
              : `<text x="${vP.x}" y="${vP.y+14}" class="n-name" opacity="0.35" style="font-size:8px">${this._t('v2c')}</text>`}
         `
-      }
+      }` : ''}
       ${d.hasBattery ? `
         ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:#34d399" d="${bChgPth}"/>` : ''}
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:#34d399" d="${bDisPth}"/>` : ''}
@@ -1915,6 +1917,7 @@ class SmoothEnergyCard extends HTMLElement {
 
   _buildCharger(d) {
     const c = this._config;
+    if (!c.v2c_power) return '';
     const active = d.chargerActive;
     const img = c.v2c_image
       ? `<img src="${c.v2c_image}" class="v2c-img${active?' plugged':''}" alt="V2C" onerror="this.style.display='none'">`
@@ -2702,6 +2705,25 @@ class SmoothEnergyCardEditor extends HTMLElement {
           </div>
         </div>
 
+        <!-- WEATHER -->
+        <div class="section">
+          <div class="section-head"><h3>🌤️ Weather</h3></div>
+          <div class="section-body">
+            <div class="row cols-2">
+              <div class="field">
+                <label>Current conditions entity</label>
+                <ha-selector data-key="weather_entity"></ha-selector>
+                <span class="hint">weather.* entity — shows live condition icon on solar orb.</span>
+              </div>
+              <div class="field">
+                <label>Forecast entity (optional)</label>
+                <ha-selector data-key="weather_forecast_entity"></ha-selector>
+                <span class="hint">weather.* entity for 12h hourly forecast popup on hover. Leave empty to reuse the entity above.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- V2C CHARGER -->
         <div class="section">
           <div class="section-head"><h3>🔌 V2C Charger</h3></div>
@@ -2822,21 +2844,11 @@ class SmoothEnergyCardEditor extends HTMLElement {
         <div class="section">
           <div class="section-head"><h3>🔔 Alerts &amp; Smart Recommendations</h3></div>
           <div class="section-body">
-            <div class="row cols-2">
+            <div class="row cols-1">
               <div class="field">
                 <label>Grid demand alert threshold (W)</label>
                 <input type="number" data-key="grid_demand_threshold" value="${c.grid_demand_threshold ?? 3000}" step="100" min="0" placeholder="3000">
                 <span class="hint">Demand/peak-shaving alerts above this import. 0 = off.</span>
-              </div>
-              <div class="field">
-                <label>Weather — current conditions</label>
-                <ha-selector data-key="weather_entity"></ha-selector>
-                <span class="hint">weather.* entity — shows condition icon on solar orb.</span>
-              </div>
-              <div class="field">
-                <label>Weather — forecast (optional)</label>
-                <ha-selector data-key="weather_forecast_entity"></ha-selector>
-                <span class="hint">weather.* entity for hourly forecast popup. Leave empty to use the same entity as above.</span>
               </div>
             </div>
             <div class="row cols-1">
