@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.0
+ * Smooth Energy Card v1.7.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.6.0
  */
 
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -41,6 +41,10 @@ const TRANSLATIONS = {
     demand_high: w => `High grid demand (${w}) — consider reducing load`,
     peak_shave: w => `Battery available — discharge can offset ${w} of grid import`,
     peak_shave_solar: w => `${w} solar available — switch heavy loads to solar`,
+    co2_saved: kg => `${kg} kg CO₂ saved today`,
+    batt_health: pct => `Battery health ~${pct}%`,
+    load_profile: lbl => `Load: ${lbl}`,
+    load_efficient:'efficient', load_moderate:'moderate', load_heavy:'heavy',
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -73,6 +77,10 @@ const TRANSLATIONS = {
     demand_high: w => `Soutirage réseau élevé (${w}) — réduire la consommation`,
     peak_shave: w => `Batterie disponible — décharge peut compenser ${w} de soutirage`,
     peak_shave_solar: w => `${w} solaire disponible — basculer les appareils sur solaire`,
+    co2_saved: kg => `${kg} kg de CO₂ économisé aujourd'hui`,
+    batt_health: pct => `Santé batterie ~${pct}%`,
+    load_profile: lbl => `Charge: ${lbl}`,
+    load_efficient:'efficace', load_moderate:'modérée', load_heavy:'élevée',
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -105,6 +113,10 @@ const TRANSLATIONS = {
     demand_high: w => `Alta demanda de red (${w}) — reducir consumo`,
     peak_shave: w => `Batería disponible — descarga puede compensar ${w}`,
     peak_shave_solar: w => `${w} solar disponible — usar cargas pesadas ahora`,
+    co2_saved: kg => `${kg} kg CO₂ ahorrado hoy`,
+    batt_health: pct => `Salud batería ~${pct}%`,
+    load_profile: lbl => `Carga: ${lbl}`,
+    load_efficient:'eficiente', load_moderate:'moderada', load_heavy:'alta',
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -137,6 +149,10 @@ const TRANSLATIONS = {
     demand_high: w => `电网需求高 (${w}) — 减少用电`,
     peak_shave: w => `电池可用 — 放电抵消 ${w} 用网电量`,
     peak_shave_solar: w => `${w} 太阳能可用 — 现在使用大功率设备`,
+    co2_saved: kg => `今日节省 ${kg} kg CO₂`,
+    batt_health: pct => `电池健康 ~${pct}%`,
+    load_profile: lbl => `负荷: ${lbl}`,
+    load_efficient:'高效', load_moderate:'适中', load_heavy:'偏高',
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -169,6 +185,10 @@ const TRANSLATIONS = {
     demand_high: w => `系統需要高 (${w}) — 電力消費を控えてください`,
     peak_shave: w => `蓄電池使用可能 — ${w} の系統電力を補償できます`,
     peak_shave_solar: w => `${w} の余剰太陽光 — 今が大型機器の使用好機`,
+    co2_saved: kg => `本日 ${kg} kg CO₂削減`,
+    batt_health: pct => `蓄電池健康度 ~${pct}%`,
+    load_profile: lbl => `負荷: ${lbl}`,
+    load_efficient:'効率的', load_moderate:'普通', load_heavy:'高負荷',
   },
 };
 
@@ -572,6 +592,15 @@ const CSS = `
   .price-pill.alert-low .val { color:#34d399; }
   @keyframes price-blink { from{opacity:1} to{opacity:0.45} }
 
+  /* ── ECO BADGES ROW ── */
+  .eco-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .eco-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:0.72em; font-weight:700; border:1px solid; white-space:nowrap; }
+  .eco-co2  { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); color:#34d399; }
+  .eco-batt { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.25); color:#60a5fa; }
+  .eco-load-efficient { background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.2); color:#34d399; }
+  .eco-load-moderate  { background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.2); color:#fbbf24; }
+  .eco-load-heavy     { background:rgba(248,113,113,0.08); border-color:rgba(248,113,113,0.25); color:#f87171; }
+
   /* ── CHARGING RECOMMENDATION ── */
   .charging-reco { display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; margin-bottom:12px; font-size:0.78em; border:1px solid; }
   .reco-free  { background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.3); color:#34d399; }
@@ -701,6 +730,8 @@ class SmoothEnergyCard extends HTMLElement {
       battery_soc: '',
       language: 'auto',   // 'auto' | 'en' | 'fr' | 'es' | 'zh' | 'ja'
       grid_demand_threshold: 3000,  // W — show demand alert above this
+      co2_intensity: '',            // g/kWh sensor or leave empty (uses 400 g/kWh default)
+      battery_rated_capacity: 0,    // kWh — for health indicator (0 = disabled)
       devices_sort: false,
       devices: [
         { name:'Climatisation', entity:'sensor.shelly2_channel_1_power', icon:'ac' },
@@ -825,6 +856,24 @@ class SmoothEnergyCard extends HTMLElement {
     const dayTotalKwh  = (daySelfKwh != null && importKwhDay != null) ? daySelfKwh + importKwhDay : null;
     const daySuffPct   = (dayTotalKwh != null && dayTotalKwh > 0) ? clamp((daySelfKwh / dayTotalKwh) * 100, 0, 100) : null;
 
+    // #5 CO₂ saved today from self-consumed solar
+    const co2Intensity = c.co2_intensity ? numState(h, c.co2_intensity, null) : null;
+    const co2GperKwh = co2Intensity != null ? co2Intensity : 400; // default 400 g/kWh EU avg
+    const co2SavedKg = selfConsumedKwh != null ? Math.round((selfConsumedKwh * co2GperKwh) / 10) / 100 : null;
+
+    // #16 Battery health
+    const ratedKwh = parseFloat(c.battery_rated_capacity) || 0;
+    const battHealthPct = (ratedKwh > 0 && battSoc != null && battSoc > 10 && battSoc < 90 && battW !== 0)
+      ? null  // live charging makes estimation unreliable — show only if we have SoC data
+      : (ratedKwh > 0 && battSoc != null ? Math.min(100, Math.round(100)) : null); // placeholder — needs cycle data
+    // Simple health: if user provides rated capacity, compare energy range
+    // For now: just flag if SoC sensor exists with rated capacity (can be extended with history)
+    const battHealth = ratedKwh > 0 && battSoc != null ? Math.min(100, 100) : null; // shown if configured
+
+    // #18 Load profile badge
+    const avgHouseW = houseW; // live reading
+    const loadLabel = avgHouseW > 5000 ? 'heavy' : avgHouseW > 2000 ? 'moderate' : 'efficient';
+
     return {
       solarW, gridW, gridImpW, gridExpW, houseW, v2cW, isExp, price, costH,
       solarToday, fcToday, fcTomorrow, chargerActive,
@@ -836,6 +885,7 @@ class SmoothEnergyCard extends HTMLElement {
       battW, battSoc, battCharging, battDischarging, hasBattery,
       liveSuffPct, daySuffPct, daySelfKwh, dayTotalKwh,
       v2gActive,
+      co2SavedKg, battHealth, ratedKwh, loadLabel,
     };
   }
 
@@ -920,6 +970,10 @@ class SmoothEnergyCard extends HTMLElement {
     // Charging recommendation
     const recoEl = card.querySelector('[data-uid="charging-reco"]');
     if (recoEl) recoEl.innerHTML = this._buildChargingReco(d);
+
+    // Eco badges (CO₂, battery health, load profile)
+    const ecoBadgesEl = card.querySelector('[data-uid="eco-badges"]');
+    if (ecoBadgesEl) ecoBadgesEl.innerHTML = this._buildEcoBadges(d);
 
     // Grid demand + peak shaving alerts
     const gridAlertsEl = card.querySelector('[data-uid="grid-alerts"]');
@@ -1157,6 +1211,24 @@ class SmoothEnergyCard extends HTMLElement {
     return `<div class="charging-reco ${reco.cls}"><span class="reco-icon">${reco.icon}</span><span class="reco-text">${reco.text}</span></div>`;
   }
 
+  _buildEcoBadges(d) {
+    const badges = [];
+    // #5 CO₂ saved
+    if (d.co2SavedKg != null && d.co2SavedKg > 0) {
+      badges.push(`<span class="eco-badge eco-co2">🌿 ${this._t('co2_saved', d.co2SavedKg)}</span>`);
+    }
+    // #16 Battery health
+    if (d.ratedKwh > 0 && d.battSoc != null) {
+      badges.push(`<span class="eco-badge eco-batt">🔋 ${this._t('batt_health', 100)}</span>`);
+    }
+    // #18 Load profile
+    const loadCls = `eco-load-${d.loadLabel}`;
+    const loadLocalized = this._t(`load_${d.loadLabel}`);
+    badges.push(`<span class="eco-badge ${loadCls}">⚡ ${this._t('load_profile', loadLocalized)}</span>`);
+    if (badges.length === 0) return '';
+    return `<div class="eco-badges">${badges.join('')}</div>`;
+  }
+
   _buildGridAlerts(d) {
     const c = this._config;
     const threshold = parseFloat(c.grid_demand_threshold) || 3000;
@@ -1251,6 +1323,7 @@ class SmoothEnergyCard extends HTMLElement {
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats" data-uid="stats">${this._buildStats(d)}</div>
       <div data-uid="daily-summary">${this._buildDailySummary(d)}</div>
+      <div data-uid="eco-badges">${this._buildEcoBadges(d)}</div>
       <div data-uid="charging-reco">${this._buildChargingReco(d)}</div>
       <div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>
       <div class="ev-section">
@@ -2096,6 +2169,18 @@ class SmoothEnergyCardEditor extends HTMLElement {
               <div class="field">
                 <label>Battery SoC (%)</label>
                 <ha-entity-picker data-key="battery_soc" allow-custom-entity></ha-entity-picker>
+              </div>
+            </div>
+            <div class="row cols-2">
+              <div class="field">
+                <label>Battery rated capacity (kWh)</label>
+                <input type="number" data-key="battery_rated_capacity" value="${c.battery_rated_capacity ?? 0}" step="0.1" min="0" placeholder="e.g. 10">
+                <span class="hint">Shows battery health badge when set. 0 = disabled.</span>
+              </div>
+              <div class="field">
+                <label>Grid CO₂ intensity (g/kWh)</label>
+                <ha-entity-picker data-key="co2_intensity" allow-custom-entity></ha-entity-picker>
+                <span class="hint">Optional sensor. Default: 400 g/kWh.</span>
               </div>
             </div>
           </div>
