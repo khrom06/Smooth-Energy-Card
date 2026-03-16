@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v1.7.6
+ * Smooth Energy Card v1.7.7
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
  * @version 1.7.5
  */
 
-const VERSION = '1.7.6';
+const VERSION = '1.7.7';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -547,8 +547,8 @@ const CSS = `
 
   .ev-section{margin-bottom:14px;}
   .section-title { font-size:0.62em; font-weight:700; letter-spacing:1.8px; color:#2a3558; text-transform:uppercase; margin-bottom:8px; }
-  .ev-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; }
-  .ev-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .ev-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .ev-card { flex:1 1 110px; max-width:180px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
   .ev-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; border-radius:14px 14px 0 0; transition:opacity 0.4s; }
   .ev-t0::before{background:linear-gradient(90deg,#f59e0b,#ef4444);}
   .ev-t1::before{background:linear-gradient(90deg,#3b82f6,#10b981);}
@@ -595,8 +595,8 @@ const CSS = `
   .v2c-img{width:56px;height:40px;object-fit:contain;opacity:0.7;}
   .v2c-img.plugged{opacity:1;filter:drop-shadow(0 0 8px rgba(192,132,252,0.6));}
 
-  .devices-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:7px;margin-bottom:12px;}
-  .device{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+  .devices-grid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;justify-content:center;}
+  .device{flex:1 1 78px;max-width:120px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   .device.on{border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.04);}
   .device.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:1.5px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent);}
   .device { cursor:pointer; }
@@ -691,7 +691,7 @@ const CSS = `
   .history-modal svg { display:block; width:100%; }
 
   /* ── ECO BADGES ROW ── */
-  .eco-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .eco-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; justify-content:center; }
   .eco-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:0.72em; font-weight:700; border:1px solid; white-space:nowrap; }
   .eco-co2  { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); color:#34d399; }
   .eco-batt { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.25); color:#60a5fa; }
@@ -775,6 +775,17 @@ const CSS = `
   .stats-popup-copy { margin-top:9px; width:100%; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.25); border-radius:6px; color:#60a5fa; font-size:0.72em; padding:4px 0; cursor:pointer; transition:background 0.15s; }
   .stats-popup-copy:hover { background:rgba(96,165,250,0.22); }
   .stats-popup-copy.ok { color:#34d399; border-color:rgba(52,211,153,0.3); }
+  /* Weather forecast popup */
+  .weather-popup { position:absolute; top:4px; left:4px; min-width:190px; background:rgba(15,23,42,0.96); border:1px solid rgba(251,191,36,0.3); border-radius:12px; padding:10px 12px; box-shadow:0 8px 28px rgba(0,0,0,0.55); z-index:9999; opacity:0; pointer-events:none; transition:opacity 0.18s,transform 0.18s; transform:translateY(-4px); }
+  .weather-popup.show { opacity:1; pointer-events:auto; transform:translateY(0); }
+  .weather-popup-current { display:flex; align-items:center; gap:6px; font-size:0.78em; font-weight:700; color:#fde68a; margin-bottom:8px; border-bottom:1px solid rgba(251,191,36,0.15); padding-bottom:6px; }
+  .weather-popup-current .wc-temp { margin-left:auto; font-size:1.1em; color:#fbbf24; }
+  .weather-popup-rows { display:flex; flex-direction:column; gap:3px; }
+  .weather-popup-row { display:flex; align-items:center; gap:6px; font-size:0.7em; color:#94a3b8; }
+  .weather-popup-row .wf-time { width:32px; font-size:0.85em; color:#64748b; }
+  .weather-popup-row .wf-icon { width:18px; text-align:center; }
+  .weather-popup-row .wf-temp { margin-left:auto; color:#fbbf24; font-weight:600; }
+  .weather-popup-row .wf-rain { color:#60a5fa; font-size:0.85em; margin-left:4px; }
 `;
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -1586,7 +1597,7 @@ class SmoothEnergyCard extends HTMLElement {
         </div>
       </div>
       ${this._buildTempoBanner(d)}
-      <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}</div>
+      <div class="flow-wrap" data-uid="flow-wrap">${this._buildFlowSVG(d)}${this._buildWeatherPopup(d)}</div>
       <div data-uid="surplus-wrap">${hasSurplus ? `<div class="surplus"><span class="s-lbl">${this._t('surplus')}</span><span class="s-val">${fmtW(d.surplusW)}</span></div>` : ''}</div>
       <div data-uid="suff-wrap">${this._buildSufficiencyGauge(d)}</div>
       <div class="stats-tabs" data-uid="stats-tabs">
@@ -1712,9 +1723,9 @@ class SmoothEnergyCard extends HTMLElement {
         : (vOn ? `<path id="pV2c" class="track t-v2c" d="${vPth}"/>` : '')
       }
       <g id="particles"></g>
-      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5"/>
+      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':'orb-sol-off'})" stroke="${sOn?'#fbbf24':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" style="cursor:${d.weatherForecast&&d.weatherForecast.length?'pointer':'default'}"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':'0.08'}"/>
-      <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}">☀️</text>
+      <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):'☀️'}</text>
       <text x="${sP.x}" y="${sP.y+7}" class="n-power" opacity="${sOn?'1':'0.35'}">${sOn?fmtW(d.solarW):'—'}</text>
       <text x="${sP.x}" y="${sP.y+22}" class="n-name">${this._t('solar')}</text>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5"/>
@@ -1916,7 +1927,37 @@ class SmoothEnergyCard extends HTMLElement {
     this._animFrames = [];
   }
 
+  _buildWeatherPopup(d) {
+    if (!d.weatherCondition || !this._config.weather_entity) return '';
+    const now = new Date();
+    const nowH = now.getHours();
+    // Determine how many hours ahead to show (2h min, 12h max)
+    const lookahead = Math.min(12, Math.max(2, 14 - nowH));
+    const cutoff = new Date(now.getTime() + lookahead * 3600 * 1000);
+    const rows = (d.weatherForecast || [])
+      .filter(f => { try { const t = new Date(f.datetime); return t >= now && t <= cutoff; } catch(e) { return false; } })
+      .slice(0, 6)
+      .map(f => {
+        const t = new Date(f.datetime);
+        const h = t.getHours().toString().padStart(2,'0') + ':00';
+        const ic = weatherIcon(f.condition || '');
+        const temp = f.temperature != null ? Math.round(f.temperature) + '°' : '';
+        const rain = f.precipitation != null && f.precipitation > 0.1 ? `💧${f.precipitation.toFixed(1)}` : '';
+        return `<div class="weather-popup-row"><span class="wf-time">${h}</span><span class="wf-icon">${ic}</span><span>${f.condition||''}</span>${rain?`<span class="wf-rain">${rain}</span>`:''}<span class="wf-temp">${temp}</span></div>`;
+      }).join('');
+    return `
+      <div class="weather-popup" data-uid="weather-popup">
+        <div class="weather-popup-current">
+          <span style="font-size:1.3em">${weatherIcon(d.weatherCondition)}</span>
+          <span>${d.weatherCondition}</span>
+          ${d.weatherTemp != null ? `<span class="wc-temp">${Math.round(d.weatherTemp)}°</span>` : ''}
+        </div>
+        ${rows ? `<div class="weather-popup-rows">${rows}</div>` : '<div style="font-size:0.7em;color:#64748b">No forecast data</div>'}
+      </div>`;
+  }
+
   _startParticles(shadow, d) {
+    const totalW = Math.max(1, d.houseW);
     [
       { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
       { id:'pImp',    col:'#f87171', w:d.gridImpW,          active:d.gridImpW>20 },
@@ -1925,33 +1966,53 @@ class SmoothEnergyCard extends HTMLElement {
       { id:'pBatChg', col:'#34d399', w:d.battW,             active:d.battCharging },
       { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
     ].filter(f => f.active).forEach(flow => {
-      const ms = Math.max(300, Math.round(1200 / clamp(flow.w/1000, 0.2, 4)));
+      const frac = clamp(flow.w / totalW, 0.04, 1);
+      // High power = fast frequent shots, low power = slow infrequent shots
+      const ms = Math.round(900 - frac * 750);
       this._particleTimers.push(setInterval(() => {
         const path = shadow.getElementById(flow.id);
         const cont = shadow.getElementById('particles');
-        if (path && cont) this._spawnDot(path, cont, flow.col);
+        if (path && cont) this._spawnLaser(path, cont, flow.col, frac);
       }, ms));
     });
   }
 
-  _spawnDot(pathEl, container, color) {
+  _spawnLaser(pathEl, container, color, frac) {
     const len = pathEl.getTotalLength();
     if (!len) return;
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('r', '3.5');
-    dot.setAttribute('fill', color);
-    dot.setAttribute('filter', `drop-shadow(0 0 3px ${color})`);
-    container.appendChild(dot);
-    const dur = 1000 + Math.random() * 700, t0 = performance.now();
+    // Head radius 1.5–4.5px, tail is 4 trailing segments
+    const headR = 1.5 + frac * 3;
+    const numTail = 4;
+    const tailSpacing = len * (0.04 + frac * 0.08); // spacing between segments
+    const dur = Math.round(700 - frac * 350); // fast shot for high power
+    const segs = Array.from({ length: numTail }, (_, i) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      el.setAttribute('r', (headR * Math.pow(0.62, i)).toFixed(2));
+      el.setAttribute('fill', color);
+      if (i === 0) el.setAttribute('filter', `drop-shadow(0 0 ${(headR * 1.6).toFixed(1)}px ${color})`);
+      container.appendChild(el);
+      return el;
+    });
+    const t0 = performance.now();
     const step = now => {
       const p = Math.min((now - t0) / dur, 1);
-      const pt = pathEl.getPointAtLength(p * len);
-      dot.setAttribute('cx', pt.x);
-      dot.setAttribute('cy', pt.y);
-      const op = p < 0.12 ? p/0.12 : p > 0.88 ? (1-p)/0.12 : 1;
-      dot.setAttribute('opacity', (op * 0.92).toFixed(3));
-      if (p < 1) this._animFrames.push(requestAnimationFrame(step));
-      else dot.remove();
+      const headPos = p * len;
+      for (let i = 0; i < numTail; i++) {
+        const pos = Math.max(0, headPos - i * tailSpacing);
+        if (pos === 0 && i > 0) { segs[i].setAttribute('opacity', '0'); continue; }
+        const pt = pathEl.getPointAtLength(pos);
+        segs[i].setAttribute('cx', pt.x.toFixed(2));
+        segs[i].setAttribute('cy', pt.y.toFixed(2));
+        const fadeIn  = p < 0.08 ? p / 0.08 : 1;
+        const fadeOut = p > 0.88 ? (1 - p) / 0.12 : 1;
+        const tailFade = 1 - (i / numTail) * 0.82;
+        segs[i].setAttribute('opacity', (fadeIn * fadeOut * tailFade).toFixed(3));
+      }
+      if (p < 1) {
+        this._animFrames.push(requestAnimationFrame(step));
+      } else {
+        segs.forEach(s => s.remove());
+      }
     };
     this._animFrames.push(requestAnimationFrame(step));
   }
@@ -2023,6 +2084,19 @@ class SmoothEnergyCard extends HTMLElement {
         });
       });
     }
+    // Solar orb weather popup
+    const solarOrb = shadow.querySelector('[data-uid="solar-orb"]');
+    const weatherPopup = shadow.querySelector('[data-uid="weather-popup"]');
+    if (solarOrb && weatherPopup) {
+      let wpHideTimer = null;
+      const showWp = () => { clearTimeout(wpHideTimer); weatherPopup.classList.add('show'); };
+      const hideWp = () => { wpHideTimer = setTimeout(() => weatherPopup.classList.remove('show'), 120); };
+      solarOrb.addEventListener('mouseenter', showWp);
+      solarOrb.addEventListener('mouseleave', hideWp);
+      weatherPopup.addEventListener('mouseenter', () => clearTimeout(wpHideTimer));
+      weatherPopup.addEventListener('mouseleave', hideWp);
+    }
+
     // Charger card
     const chargerCard = shadow.querySelector('.ev-charger');
     if (chargerCard && c.v2c_power) chargerCard.addEventListener('click', () => this._moreInfo(c.v2c_power));
