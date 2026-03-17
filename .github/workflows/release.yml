@@ -18,3 +18,5 @@ jobs:
         with:
           files: dist/smooth-energy-card.js
           generate_release_notes: true
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
