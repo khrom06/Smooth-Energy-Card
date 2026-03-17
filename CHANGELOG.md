@@ -4,6 +4,55 @@ All notable changes to this project are documented here.
 
 ---
 
+## [v2.19.0] — 2026-03-17
+
+### ✨ New Feature
+- **Auto-dim at night** (`auto_dim`): card reduces brightness and saturation after sunset for peaceful wall display. Uses `sun.sun` entity state (`below_horizon`) with time-based fallback (22:00–06:00). 3s smooth CSS transition. Disable with `auto_dim: false`. Toggle in editor General section.
+
+---
+
+## [v2.18.0] — 2026-03-17
+
+### ✨ New Feature
+- **SVG orb size scales with power**: Solar, House, Grid, V2C, and Battery orbs grow proportionally with live wattage (base × 75% at 0W → base × 120% at 5 kW). `_orbR(baseR, watts, maxW)` helper added. Node IDs added for direct DOM access. CSS `transition: r 1.5s ease-out` on SVG circles.
+
+---
+
+## [v2.17.0] — 2026-03-17
+
+### ✨ New Feature
+- **Collapsible sections**: EV section, Devices section, and Forecast section can be collapsed by tapping their header. Chevron (▾/▸) indicates state. State persists in localStorage per section key (`sec-smooth-energy-{key}`). Smooth `max-height` CSS transition (0.35s ease). Main flow diagram and stats row are never collapsible.
+
+---
+
+## [v2.16.0] — 2026-03-17
+
+### ✨ New Feature
+- **Ambient color shift by self-sufficiency**: card top gradient subtly shifts hue based on live solar coverage. Full solar → warm green tint (hue 140, sat 12%). Full grid import → cool blue tint (hue 240, sat 8%). Neutral at 50% sufficiency. 4s CSS transition for smooth color drift.
+
+---
+
+## [v2.15.0] — 2026-03-17
+
+### ✨ New Feature
+- **Tap stat tile to expand sparkline**: each stat tile (Solar Today, Forecast, Grid, Cost) can be tapped to expand an inline 6h history sparkline below the value. Uses existing `_fetchSparklines()` data. Smooth `max-height` CSS transition. Only one tile expanded at a time.
+
+---
+
+## [v2.14.0] — 2026-03-17
+
+### ✨ New Feature
+- **EV battery arc fill animation**: on initial render the battery ring arc starts at empty (full dashoffset) then eases to real SOC in 2.5s. During charging, SOC updates animate smoothly via CSS `transition: stroke-dashoffset 2.5s ease-out`. Color transitions also animate.
+
+---
+
+## [v2.13.0] — 2026-03-17
+
+### ✨ New Feature
+- **Particle density proportional to power**: added `_particleInterval(watts)` helper that maps 0W → 800ms interval, 6000W → 80ms interval (formula: `max(80, 800 - watts/6000 * 720)`). High-wattage paths look dense and busy; idle paths are sparse.
+
+---
+
 ## [v2.11.0] — 2026-03-18
 
 ### ✨ New Features

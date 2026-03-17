@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.19.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -241,6 +241,7 @@ hide:                          # hide individual sections by name (all shown by 
 | `chargers` | list | `[]` | Additional EV chargers (see below) |
 | `price_chart_entity` | entity | — | Sensor with hourly spot-price forecast (Tibber, Nordpool, EPEX) for 24h bar chart (v2.6.0) |
 | `tariff_zones` | list | `[]` | Time-of-use tariff zones for countdown pill — each needs `name`, `start`, `end`, `multiplier` (v2.10.0) |
+| `auto_dim` | boolean | `true` | Auto-dim card after sunset — uses `sun.sun` entity or time fallback (22:00–06:00). Set `false` to disable (v2.19.0) |
 | `evs` | list | `[]` | Electric vehicles (see below) |
 | `devices` | list | `[]` | Device monitors (see below) |
 
