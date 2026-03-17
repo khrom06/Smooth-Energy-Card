@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.16.0
+ * Smooth Energy Card v2.17.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.16.0
+ * @version 2.17.0
  */
 
-const VERSION = '2.16.0';
+const VERSION = '2.17.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1388,6 +1388,13 @@ const CSS = `
   /* v2.14.0: EV arc smooth fill animation */
   .bat-fill { transition: stroke-dashoffset 2.5s ease-out, stroke 1s ease; }
   .bat-fill.ev-arc-init { transition: none; }
+
+  /* v2.17.0: Collapsible sections */
+  .sec-hdr { cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between; }
+  .sec-chevron { transition:transform 0.25s ease; display:inline-block; margin-left:6px; font-size:10px; opacity:0.7; }
+  .sec-collapsed .sec-chevron { transform:rotate(-90deg); }
+  .sec-body { overflow:hidden; transition:max-height 0.35s ease, opacity 0.3s ease; max-height:2000px; opacity:1; }
+  .sec-body.sec-body-collapsed { max-height:0 !important; opacity:0; }
 
   /* v2.16.0: Ambient color saturation by self-sufficiency */
   :host { transition: --ambient-hue 4s ease, --ambient-sat 4s ease; }
@@ -3298,22 +3305,33 @@ class SmoothEnergyCard extends HTMLElement {
       ${!hide.has('ev_optimizer') ? `<div data-uid="ev-optimizer">${this._buildEvOptimizer(d)}</div>` : '<div data-uid="ev-optimizer"></div>'}
       ${!hide.has('dev_scheduler') ? `<div data-uid="dev-scheduler">${this._buildDevScheduler(d)}</div>` : '<div data-uid="dev-scheduler"></div>'}
       ${!hide.has('grid_alerts') ? `<div data-uid="grid-alerts">${this._buildGridAlerts(d)}</div>` : '<div data-uid="grid-alerts"></div>'}
-      ${!hide.has('ev') ? `<div class="ev-section">
-        <div class="section-title">${this._t('ev_section')}</div>
-        <div class="ev-grid" data-uid="ev-grid">
-          ${d.chargerList.map((charger, i) => this._buildChargerFromObj(charger, d, i)).join('')}
-          ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
+      ${!hide.has('ev') ? `<div class="ev-section sec-section" data-section="ev">
+        <div class="section-title sec-hdr"><span>${this._t('ev_section')}</span><span class="sec-chevron">▾</span></div>
+        <div class="sec-body" data-section-body="ev">
+          <div class="ev-grid" data-uid="ev-grid">
+            ${d.chargerList.map((charger, i) => this._buildChargerFromObj(charger, d, i)).join('')}
+            ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
+          </div>
         </div>
       </div>` : ''}
       <div data-uid="batt-soh">${this._buildBattSoh(d)}</div>
-      ${!hide.has('devices') ? `<div class="section-title">${this._t('dev_section')}</div>
-      <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>` : ''}
+      ${!hide.has('devices') ? `<div class="sec-section" data-section="devices">
+        <div class="section-title sec-hdr"><span>${this._t('dev_section')}</span><span class="sec-chevron">▾</span></div>
+        <div class="sec-body" data-section-body="devices">
+          <div class="devices-grid" data-uid="devices-grid">${d.devices.map((dev, i) => this._buildDevice(dev, this._config.devices_sort ? i : null)).join('')}</div>
+        </div>
+      </div>` : ''}
       <div data-uid="diverter-tracker">${this._buildDiverterTracker(d)}</div>
       <div data-uid="solcast-overlay">${this._buildSolcastOverlay(d)}</div>
       <div data-uid="demand-heatmap">${!hide.has('heatmap') ? this._buildDemandHeatmap() : ''}</div>
       ${!hide.has('records') ? `<div data-uid="records">${this._buildRecords()}</div>` : ''}
       <div data-uid="event-log">${!hide.has('event_log') ? this._buildEventLog() : ''}</div>
-      ${!hide.has('forecast') ? `<div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>` : '<div data-uid="forecast-row"></div>'}`;
+      ${!hide.has('forecast') ? `<div class="sec-section" data-section="forecast">
+        <div class="section-title sec-hdr"><span>${this._t('forecast')}</span><span class="sec-chevron">▾</span></div>
+        <div class="sec-body" data-section-body="forecast">
+          <div class="forecast-row" data-uid="forecast-row">${this._buildForecast(d)}</div>
+        </div>
+      </div>` : '<div data-uid="forecast-row"></div>'}`;
   }
 
   _buildFlowSVG(d) {
@@ -4688,6 +4706,24 @@ class SmoothEnergyCard extends HTMLElement {
           qaBtn.classList.add('qa-fired');
           setTimeout(()=>qaBtn.classList.remove('qa-fired'), 600);
         }
+      });
+    });
+
+    // v2.17.0: Collapsible sections
+    shadow.querySelectorAll('.sec-section').forEach(section => {
+      const key = section.getAttribute('data-section');
+      const hdr = section.querySelector('.sec-hdr');
+      const body = section.querySelector('.sec-body');
+      if (!hdr || !body) return;
+      // Restore state from localStorage
+      let collapsed = false;
+      try { collapsed = localStorage.getItem('sec-smooth-energy-' + key) === '1'; } catch(e) {}
+      if (collapsed) { body.classList.add('sec-body-collapsed'); hdr.classList.add('sec-collapsed'); }
+      hdr.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCollapsed = body.classList.toggle('sec-body-collapsed');
+        hdr.classList.toggle('sec-collapsed', isCollapsed);
+        try { localStorage.setItem('sec-smooth-energy-' + key, isCollapsed ? '1' : '0'); } catch(e) {}
       });
     });
 
