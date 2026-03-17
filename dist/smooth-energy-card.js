@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.10.1
+ * Smooth Energy Card v2.12.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.10.1
+ * @version 2.12.0
  */
 
-const VERSION = '2.11.0';
+const VERSION = '2.12.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -270,6 +270,91 @@ const TRANSLATIONS = {
     price_fc_current: p => `現在: ${p} €/kWh`,
     tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
+};
+
+// ─── Skin CSS variable overrides ──────────────────────────────────────────────
+const SKIN_VARS = {
+  aurora: `
+    --c-bg: #050d1a;
+    --c-card: rgba(12,28,52,0.72);
+    --c-tile: rgba(8,20,40,0.80);
+    --c-border: rgba(99,202,233,0.18);
+    --c-border-sub: rgba(99,202,233,0.14);
+    --c-text: #e8f4fd;
+    --c-text2: rgba(168,210,240,0.70);
+    --c-text3: rgba(100,150,180,0.40);
+    --c-solar: #ffd166;
+    --c-solar-glow: rgba(255,209,102,0.55);
+    --c-grid: #e040fb;
+    --c-grid-glow: rgba(224,64,251,0.50);
+    --c-battery: #00e5cc;
+    --c-battery-glow: rgba(0,229,204,0.50);
+    --c-house: #63ccff;
+    --c-export: #63ccff;
+    --c-accent: #00e5cc;
+    --c-danger: rgba(255,80,80,0.50);
+    --c-card-radius: 16px;
+    --c-tile-radius: 14px;
+    --c-backdrop: blur(20px) saturate(180%);
+    --c-shadow: 0 24px 64px rgba(0,0,0,0.60),0 0 0 1px rgba(99,202,233,0.10);
+    --c-tile-shadow: 0 2px 8px rgba(0,0,0,0.30);
+    --c-tile-hover-shadow: 0 8px 24px rgba(0,229,204,0.15);
+    --c-particle: #ffd166;
+  `,
+  hud: `
+    --c-bg: #0a0c0f;
+    --c-card: rgba(14,18,24,0.95);
+    --c-tile: rgba(18,24,32,0.90);
+    --c-border: rgba(0,212,255,0.25);
+    --c-border-sub: rgba(0,212,255,0.15);
+    --c-text: #e0f0ff;
+    --c-text2: rgba(0,212,255,0.70);
+    --c-text3: rgba(0,150,180,0.45);
+    --c-solar: #ffc107;
+    --c-solar-glow: rgba(255,193,7,0.55);
+    --c-grid: #e040fb;
+    --c-grid-glow: rgba(224,64,251,0.45);
+    --c-battery: #00d4ff;
+    --c-battery-glow: rgba(0,212,255,0.55);
+    --c-house: #00d4ff;
+    --c-export: #00ff88;
+    --c-accent: #00d4ff;
+    --c-danger: rgba(255,60,60,0.55);
+    --c-card-radius: 4px;
+    --c-tile-radius: 3px;
+    --c-backdrop: blur(8px) saturate(120%);
+    --c-shadow: 0 0 0 1px rgba(0,212,255,0.30),0 8px 32px rgba(0,0,0,0.80);
+    --c-tile-shadow: 0 0 0 1px rgba(0,212,255,0.15);
+    --c-tile-hover-shadow: 0 0 16px rgba(0,212,255,0.25);
+    --c-particle: #00d4ff;
+  `,
+  zen: `
+    --c-bg: #f5f0e8;
+    --c-card: #fdfaf4;
+    --c-tile: #f8f4ec;
+    --c-border: #e8e0d0;
+    --c-border-sub: #ece5d8;
+    --c-text: #2c2416;
+    --c-text2: #7a6e5f;
+    --c-text3: #a89f92;
+    --c-solar: #e8a020;
+    --c-solar-glow: rgba(232,160,32,0.20);
+    --c-grid: #c4614a;
+    --c-grid-glow: rgba(196,97,74,0.20);
+    --c-battery: #6b9e7a;
+    --c-battery-glow: rgba(107,158,122,0.25);
+    --c-house: #4a6b5c;
+    --c-export: #5c8a6b;
+    --c-accent: #3d6b4a;
+    --c-danger: rgba(184,80,64,0.40);
+    --c-card-radius: 20px;
+    --c-tile-radius: 14px;
+    --c-backdrop: none;
+    --c-shadow: 0 4px 24px rgba(44,36,22,0.10),0 1px 4px rgba(44,36,22,0.06);
+    --c-tile-shadow: 0 2px 8px rgba(44,36,22,0.06),0 1px 2px rgba(44,36,22,0.04);
+    --c-tile-hover-shadow: 0 6px 20px rgba(44,36,22,0.10);
+    --c-particle: #e8a020;
+  `
 };
 
 function getLang(hass, config) {
@@ -655,11 +740,11 @@ const CSS = `
   .orb-detail-stats { font-size:0.7em; color:#3d5280; margin-top:4px; }
   *, *::before, *::after { box-sizing: border-box; }
   .card {
-    background: linear-gradient(160deg,#14192e 0%,#0c1020 60%,#111827 100%);
-    border-radius: 20px; padding: 18px 18px 14px; color: #dce8ff;
+    background: var(--c-card, linear-gradient(160deg,#14192e 0%,#0c1020 60%,#111827 100%));
+    border-radius: var(--c-card-radius, 20px); padding: 18px 18px 14px; color: var(--c-text, #dce8ff);
     overflow: hidden; position: relative;
-    border: 1px solid rgba(96,165,250,0.12);
-    box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(255,255,255,0.02);
+    border: 1px solid var(--c-border, rgba(96,165,250,0.12));
+    box-shadow: var(--c-shadow, 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(255,255,255,0.02));
   }
   .card-hud { position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; border-radius:20px; }
   .card-hud::before { content:''; position:absolute; inset:0;
@@ -714,14 +799,14 @@ const CSS = `
   .stats-tab-panel { display:none; }
   .stats-tab-panel.active { display:block; }
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:14px; }
-  .stat { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:9px 5px; text-align:center; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; }
+  .stat { background:var(--c-tile, rgba(255,255,255,0.04)); border:1px solid var(--c-border-sub, rgba(255,255,255,0.09)); border-radius:var(--c-tile-radius, 12px); padding:9px 5px; text-align:center; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; box-shadow:var(--c-tile-shadow, none); }
   .stat .sv{font-size:0.9em;font-weight:700;line-height:1;margin-bottom:3px;} .stat .sl{font-size:0.58em;font-weight:600;color:#3d5280;text-transform:uppercase;letter-spacing:0.5px;}
   .st-sol .sv{color:#fbbf24;} .st-exp .sv{color:#34d399;} .st-imp .sv{color:#f87171;} .st-earn .sv{color:#34d399;} .st-cost .sv{color:#f87171;}
 
   .ev-section{margin-bottom:14px;}
-  .section-title { font-size:0.62em; font-weight:700; letter-spacing:1.8px; color:#2a3558; text-transform:uppercase; margin-bottom:8px; }
+  .section-title { font-size:0.62em; font-weight:700; letter-spacing:1.8px; color:var(--c-text3, #2a3558); text-transform:uppercase; margin-bottom:8px; }
   .ev-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-  .ev-card { flex:1 1 110px; max-width:180px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .ev-card { flex:1 1 110px; max-width:180px; background:var(--c-tile, rgba(255,255,255,0.03)); border:1px solid var(--c-border-sub, rgba(255,255,255,0.06)); border-radius:var(--c-tile-radius, 14px); padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; overflow:hidden; transition:border-color 0.4s,box-shadow 0.4s; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
   .ev-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; border-radius:14px 14px 0 0; transition:opacity 0.4s; }
   .ev-t0::before{background:linear-gradient(90deg,#f59e0b,#ef4444);}
   .ev-t1::before{background:linear-gradient(90deg,#3b82f6,#10b981);}
@@ -777,7 +862,7 @@ const CSS = `
   .v2c-img.plugged{opacity:1;filter:drop-shadow(0 0 8px rgba(192,132,252,0.6));}
 
   .devices-grid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;justify-content:center;}
-  .device{flex:1 1 78px;max-width:120px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:11px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+  .device{flex:1 1 78px;max-width:120px;background:var(--c-tile, rgba(255,255,255,0.025));border:1px solid var(--c-border-sub, rgba(255,255,255,0.05));border-radius:var(--c-tile-radius, 11px);padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   .device.on{border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.04);}
   .device.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:1.5px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.5),transparent);}
   .device { cursor:pointer; }
@@ -1288,6 +1373,17 @@ const CSS = `
 
   /* Orb hover glow (applied via JS class) */
   .orb-glow-hover { filter:drop-shadow(0 0 12px currentColor) brightness(1.15); transition:filter 0.25s; }
+
+  /* ── Skin: HUD extras ── */
+  :host([data-skin="hud"]) .card { font-family: 'Courier New', monospace; }
+  :host([data-skin="hud"]) .section-title::before { content: '//'; margin-right: 6px; opacity: 0.5; }
+  :host([data-skin="hud"]) .stat { border-left: 2px solid var(--c-border, rgba(0,212,255,0.25)); border-radius: 3px; }
+  /* ── Skin: Zen extras ── */
+  :host([data-skin="zen"]) .card { font-family: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif; }
+  :host([data-skin="zen"]) .section-title { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 14px; }
+  /* ── Skin: Aurora extras ── */
+  :host([data-skin="aurora"]) .card { backdrop-filter: var(--c-backdrop); }
+  :host([data-skin="aurora"]) .section-title { text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; }
 `;
 
 
@@ -1777,6 +1873,7 @@ class SmoothEnergyCard extends HTMLElement {
       // Draw cable after layout is painted
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
       this._domReady = true;
+      this._applySkinVars();
       requestAnimationFrame(() => this._setupTapHandlers(shadow));
       this._fetchSparklines();
     }
@@ -1786,6 +1883,8 @@ class SmoothEnergyCard extends HTMLElement {
     const shadow = this.shadowRoot;
     const card = shadow.querySelector('.card');
     if (!card) { this._render(); return; }
+    // Apply skin vars on every patch so config changes take effect immediately
+    this._applySkinVars();
     // v2.9.0: Cache latest data for dynamic particle coloring
     this._patchData = d;
 
@@ -4280,6 +4379,18 @@ class SmoothEnergyCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
   }
 
+  _applySkinVars() {
+    const sr = this.shadowRoot;
+    if (!sr) return;
+    const skin = (this._config && this._config.skin) || 'default';
+    let el = sr.getElementById('sec-skin');
+    if (!el) { el = document.createElement('style'); el.id = 'sec-skin'; sr.appendChild(el); }
+    el.textContent = skin !== 'default' && SKIN_VARS[skin]
+      ? `:host { ${SKIN_VARS[skin]} }`
+      : '';
+    this.setAttribute('data-skin', skin);
+  }
+
   _statsText(d) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -5032,6 +5143,17 @@ class SmoothEnergyCardEditor extends HTMLElement {
                   <option value="light"${c.theme==='light'?' selected':''}>☀️ Light</option>
                 </select>
               </div>
+              <div class="field">
+                <label>Skin</label>
+                <select data-key="skin">
+                  <option value="default"${c.skin==='default'||!c.skin?' selected':''}>Default</option>
+                  <option value="aurora"${c.skin==='aurora'?' selected':''}>Aurora Glass</option>
+                  <option value="hud"${c.skin==='hud'?' selected':''}>Carbon HUD</option>
+                  <option value="zen"${c.skin==='zen'?' selected':''}>Eco Zen</option>
+                </select>
+              </div>
+            </div>
+            <div class="row cols-2">
               <div class="field">
                 <label>Compact mode</label>
                 <select data-key="compact">
