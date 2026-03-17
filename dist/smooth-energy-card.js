@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.12.0
+ * Smooth Energy Card v2.13.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.12.0
+ * @version 2.13.0
  */
 
-const VERSION = '2.12.0';
+const VERSION = '2.13.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -4295,6 +4295,12 @@ class SmoothEnergyCard extends HTMLElement {
     }, 1500);
   }
 
+  // v2.13.0: Returns spawn interval in ms proportional to wattage.
+  // clamp watts 0–6000, map to 800ms (0W) → 80ms (6000W).
+  _particleInterval(watts) {
+    return Math.max(80, Math.round(800 - (clamp(watts, 0, 6000) / 6000) * 720));
+  }
+
   _startParticles(shadow, d) {
     const totalW = Math.max(1, d.houseW);
     const activeDevNodes = (d.devices || []).filter(dev => dev.w > 50).slice(0, 4);
@@ -4313,8 +4319,8 @@ class SmoothEnergyCard extends HTMLElement {
       const fracRel = clamp(flow.w / totalW, 0.04, 1);
       const fracAbs = clamp(flow.w / 6000, 0.02, 1); // absolute: 6kW = full
       const frac = clamp((fracRel + fracAbs) / 2, 0.04, 1);
-      // High power = fast frequent shots, low power = slow infrequent shots
-      const ms = Math.round(900 - frac * 770);
+      // v2.13.0: use _particleInterval for density proportional to wattage
+      const ms = this._particleInterval(flow.w);
       // Very high flows (>2kW) spawn a second simultaneous particle
       const dual = flow.w > 2000;
       this._particleTimers.push(setInterval(() => {
