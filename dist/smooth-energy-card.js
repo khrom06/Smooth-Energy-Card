@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.7.0
+ * Smooth Energy Card v2.8.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.7.0
+ * @version 2.8.0
  */
 
-const VERSION = '2.7.0';
+const VERSION = '2.8.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -868,10 +868,13 @@ const CSS = `
 
   /* ── HISTORY MODAL ── */
   .history-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; }
-  .history-modal { background:rgba(15,23,42,0.98); border:1px solid rgba(96,165,250,0.2); border-radius:16px; padding:20px; min-width:300px; max-width:94vw; box-shadow:0 16px 48px rgba(0,0,0,0.6); color:#cbd5e1; }
+  .history-modal { background:rgba(15,23,42,0.98); border:1px solid rgba(96,165,250,0.2); border-radius:16px; padding:20px; min-width:300px; max-width:94vw; max-height:90vh; overflow-y:auto; box-shadow:0 16px 48px rgba(0,0,0,0.6); color:#cbd5e1; }
   .history-modal-title { font-size:0.85em; font-weight:800; color:#60a5fa; margin-bottom:14px; }
   .history-modal-close { float:right; background:none; border:none; color:#60a5fa; font-size:1.1em; cursor:pointer; }
   .history-modal svg { display:block; width:100%; }
+  .hm-bar-import { fill:#f87171; }
+  .hm-bar-solar  { fill:#fbbf24; }
+  .hm-bar-export { fill:#34d399; }
 
   /* ── ECO BADGES ROW ── */
   .eco-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; justify-content:center; }
@@ -2411,55 +2414,174 @@ class SmoothEnergyCard extends HTMLElement {
     </div>`;
   }
 
-  // #2 History modal — 7-day bar chart (async, called via tap)
+  // v2.8.0: 7-day history overlay modal with stacked bar chart
   async _showHistoryModal() {
     const h = this._hass, c = this._config;
-    if (!h || !c.solar_today) return;
+    if (!h) return;
     const shadow = this.shadowRoot;
+
+    // Check localStorage throttle (once per hour)
+    const cacheKey = 'sec-week-history';
+    const cacheTs  = 'sec-week-history-ts';
+    try {
+      const lastFetch = parseInt(localStorage.getItem(cacheTs) || '0');
+      const cached = localStorage.getItem(cacheKey);
+      if (cached && Date.now() - lastFetch < 3600000) {
+        this._weekData = JSON.parse(cached);
+      }
+    } catch(e) {}
+
     // Show loading backdrop
     const backdrop = document.createElement('div');
     backdrop.className = 'history-modal-backdrop';
-    backdrop.innerHTML = `<div class="history-modal"><button class="history-modal-close">✕</button><div class="history-modal-title">📅 7-Day Solar History</div><div>Loading…</div></div>`;
+    backdrop.innerHTML = `<div class="history-modal"><button class="history-modal-close">✕</button><div class="history-modal-title">📅 7-Day Energy History</div><div class="hm-loading" style="color:#64748b;font-size:0.8em;padding:10px 0">Loading…</div></div>`;
     shadow.appendChild(backdrop);
-    backdrop.querySelector('.history-modal-close').addEventListener('click', () => backdrop.remove());
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-    try {
-      const end = new Date();
-      const start = new Date(end - 7 * 86400000);
-      const raw = await h.callApi('GET',
-        `history/period/${start.toISOString()}?filter_entity_id=${c.solar_today}&minimal_response=true&no_attributes=true&end_time=${end.toISOString()}`
-      );
-      if (!Array.isArray(raw) || !raw[0]) { backdrop.querySelector('div div').textContent = 'No data available'; return; }
-      const series = raw[0];
-      // Group by day — last reading per day
-      const days = {};
-      series.forEach(s => {
-        if (s.state === 'unavailable' || s.state === 'unknown') return;
-        const day = s.last_changed.substring(0, 10);
-        days[day] = parseFloat(s.state) || 0;
-      });
-      const dayKeys = Object.keys(days).sort().slice(-7);
-      const vals = dayKeys.map(k => days[k]);
-      if (!vals.length) { backdrop.querySelector('.history-modal div').textContent = 'Insufficient history'; return; }
-      const maxV = Math.max(...vals) || 1;
-      const W2 = 300, H2 = 80, bW = Math.floor(W2 / vals.length) - 4;
-      const barsHtml = vals.map((v, i) => {
-        const bH = Math.max(3, Math.round((v / maxV) * H2));
-        const x = i * (bW + 4);
-        const y = H2 - bH;
-        const label = dayKeys[i].substring(5); // MM-DD
-        return `<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="#fbbf24" opacity="0.8"/>
-          <text x="${x+bW/2}" y="${H2+10}" text-anchor="middle" font-size="8" fill="#94a3b8">${label}</text>
-          <text x="${x+bW/2}" y="${y-3}" text-anchor="middle" font-size="8" fill="#fbbf24">${round1(v)}</text>`;
-      }).join('');
-      backdrop.querySelector('.history-modal').innerHTML = `
-        <button class="history-modal-close">✕</button>
-        <div class="history-modal-title">📅 7-Day Solar · kWh/day</div>
-        <svg viewBox="0 0 ${W2} ${H2+16}" height="${H2+16}">${barsHtml}</svg>`;
-      backdrop.querySelector('.history-modal-close').addEventListener('click', () => backdrop.remove());
-    } catch(e) {
-      backdrop.querySelector('div div').textContent = 'History API unavailable';
+    const closeModal = () => backdrop.remove();
+    backdrop.querySelector('.history-modal-close').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
+
+    // Fetch history if not cached
+    if (!this._weekData) {
+      try {
+        const end = new Date();
+        const start = new Date(end - 7 * 86400000);
+        const entities = [c.solar_today, c.grid_energy_import, c.grid_energy_export].filter(Boolean);
+        if (!entities.length) {
+          backdrop.querySelector('.hm-loading').textContent = 'Configure solar_today and grid_energy_import sensors';
+          return;
+        }
+        const raw = await h.callApi('GET',
+          `history/period/${start.toISOString()}?filter_entity_id=${entities.join(',')}&minimal_response=true&no_attributes=true&end_time=${end.toISOString()}`
+        );
+        if (!Array.isArray(raw)) throw new Error('No data');
+
+        // Parse series per entity — last reading per day
+        const parseByDay = (series) => {
+          if (!series || !series.length) return {};
+          const days = {};
+          series.forEach(s => {
+            if (!s || s.state === 'unavailable' || s.state === 'unknown') return;
+            const day = (s.last_changed || s.last_updated || '').substring(0, 10);
+            if (!day) return;
+            const v = parseFloat(s.state);
+            if (!isNaN(v) && v < 300) days[day] = Math.max(days[day] || 0, v);
+          });
+          return days;
+        };
+
+        const solarByDay   = parseByDay(raw.find(s => s[0] && entities.indexOf(c.solar_today) >= 0 && s[0].entity_id === c.solar_today) || (entities[0] === c.solar_today ? raw[0] : null));
+        const importByDay  = parseByDay(raw.find(s => s[0] && s[0].entity_id === c.grid_energy_import) || null);
+        const exportByDay  = parseByDay(raw.find(s => s[0] && s[0].entity_id === c.grid_energy_export) || null);
+
+        // Fallback: map by position in entities array
+        if (!Object.keys(solarByDay).length && raw[0]) {
+          const dayMap = parseByDay(raw[0]);
+          Object.assign(solarByDay, dayMap);
+        }
+        if (!Object.keys(importByDay).length && raw[1]) {
+          const dayMap = parseByDay(raw[1]);
+          Object.assign(importByDay, dayMap);
+        }
+        if (!Object.keys(exportByDay).length && raw[2]) {
+          const dayMap = parseByDay(raw[2]);
+          Object.assign(exportByDay, dayMap);
+        }
+
+        // Build 7-day data array
+        const allDays = new Set([...Object.keys(solarByDay), ...Object.keys(importByDay)]);
+        const dayKeys = Array.from(allDays).sort().slice(-7);
+
+        const price = c.kwh_price ? numState(h, c.kwh_price, null) : null;
+        this._weekData = dayKeys.map(day => {
+          const solar = solarByDay[day] || 0;
+          const imp   = importByDay[day] || 0;
+          const exp   = exportByDay[day] || 0;
+          const cost  = price != null ? imp * price : null;
+          const save  = price != null && solar > 0 ? Math.max(0, solar - exp) * price : null;
+          return { date: day, solarKwh: solar, importKwh: imp, exportKwh: exp, costEur: cost, savingsEur: save };
+        });
+
+        // Cache result
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(this._weekData));
+          localStorage.setItem(cacheTs, String(Date.now()));
+        } catch(e) {}
+      } catch(err) {
+        const loadEl = backdrop.querySelector('.hm-loading');
+        if (loadEl) loadEl.textContent = 'History API unavailable';
+        return;
+      }
     }
+
+    if (!this._weekData || !this._weekData.length) {
+      backdrop.querySelector('.hm-loading').textContent = 'Insufficient history data';
+      return;
+    }
+
+    // Build stacked bar chart SVG
+    const days = this._weekData;
+    const maxVal = Math.max(...days.map(d => (d.importKwh || 0) + (d.solarKwh || 0)), 1);
+    const W = 300, H = 80;
+    const n = days.length;
+    const bW = Math.floor((W - (n - 1) * 3) / n);
+    const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    const barsHtml = days.map((day, i) => {
+      const x = i * (bW + 3);
+      const impH = Math.max(0, Math.round((day.importKwh / maxVal) * H));
+      const solH = Math.max(0, Math.round((day.solarKwh / maxVal) * H));
+      const expH = Math.max(0, Math.round((day.exportKwh / maxVal) * (H * 0.5)));
+      const date = new Date(day.date + 'T12:00:00');
+      const lbl = day.date.substring(5); // MM-DD
+      const daylbl = dayLabels[date.getDay()] || lbl;
+      const isToday = day.date === new Date().toISOString().slice(0, 10);
+      const totalH = Math.max(impH + solH, 2);
+      const topY = H - totalH;
+      return `
+        <g>
+          ${impH > 0 ? `<rect x="${x}" y="${H - impH}" width="${bW}" height="${impH}" rx="2" class="hm-bar-import" opacity="0.75"/>` : ''}
+          ${solH > 0 ? `<rect x="${x}" y="${topY}" width="${bW}" height="${solH}" rx="2" class="hm-bar-solar" opacity="0.85"/>` : ''}
+          ${expH > 0 ? `<rect x="${x}" y="${H}" width="${bW}" height="${Math.min(expH, 12)}" rx="1" class="hm-bar-export" opacity="0.7"/>` : ''}
+          <text x="${x + bW/2}" y="${H + 22}" text-anchor="middle" font-size="8" fill="${isToday ? '#60a5fa' : '#64748b'}" font-weight="${isToday?'700':'400'}">${daylbl}</text>
+          ${totalH > 4 ? `<text x="${x + bW/2}" y="${topY - 2}" text-anchor="middle" font-size="7" fill="#fbbf24" opacity="0.9">${round1(day.solarKwh)}</text>` : ''}
+        </g>`;
+    }).join('');
+
+    const totalImport = days.reduce((s, d) => s + (d.importKwh || 0), 0);
+    const totalSolar  = days.reduce((s, d) => s + (d.solarKwh || 0), 0);
+    const totalCost   = days.reduce((s, d) => s + (d.costEur || 0), 0);
+    const totalSave   = days.reduce((s, d) => s + (d.savingsEur || 0), 0);
+
+    backdrop.querySelector('.history-modal').innerHTML = `
+      <button class="history-modal-close">✕</button>
+      <div class="history-modal-title">📅 7-Day Energy History</div>
+      <div style="font-size:0.72em;color:#64748b;margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap">
+        <span style="color:#fbbf24">■ Solar</span>
+        <span style="color:#f87171">■ Import</span>
+        <span style="color:#34d399">■ Export</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H + 28}" height="${H + 28}" style="width:100%">
+        ${barsHtml}
+      </svg>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px;font-size:0.72em">
+        <div style="background:rgba(251,191,36,0.08);border-radius:8px;padding:6px 10px">
+          <div style="color:#fbbf24;font-weight:700">${round1(totalSolar)} kWh</div>
+          <div style="color:#64748b">7d Solar</div>
+        </div>
+        <div style="background:rgba(248,113,113,0.08);border-radius:8px;padding:6px 10px">
+          <div style="color:#f87171;font-weight:700">${round1(totalImport)} kWh</div>
+          <div style="color:#64748b">7d Import</div>
+        </div>
+        ${totalCost > 0 ? `<div style="background:rgba(248,113,113,0.08);border-radius:8px;padding:6px 10px">
+          <div style="color:#f87171;font-weight:700">${totalCost.toFixed(2)} €</div>
+          <div style="color:#64748b">7d Cost</div>
+        </div>` : ''}
+        ${totalSave > 0 ? `<div style="background:rgba(52,211,153,0.08);border-radius:8px;padding:6px 10px">
+          <div style="color:#34d399;font-weight:700">${totalSave.toFixed(2)} €</div>
+          <div style="color:#64748b">7d Savings</div>
+        </div>` : ''}
+      </div>`;
+    backdrop.querySelector('.history-modal-close').addEventListener('click', closeModal);
   }
 
   // #17 EV charging optimizer
