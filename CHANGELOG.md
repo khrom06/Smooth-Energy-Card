@@ -4,6 +4,104 @@ All notable changes to this project are documented here.
 
 ---
 
+## [v2.10.1] — 2026-03-17
+
+### ✨ New Features
+- **Micro-interaction polish**: hover scale on EV cards (1.035×) and device tiles (1.04×) for tactile depth
+- **Click ripple**: expanding ripple circle animates from click point on EV cards, charger cards, and device tiles
+- **Orb hover glow**: solar, grid, and house SVG orbs gain colored drop-shadow + brightness on hover; cursor turns pointer
+- **Price pill hover**: brightness lift + blue glow reinforces it is tappable
+- **Section fade-in**: stats panels, EV section, devices section, reco row slide-up on first render (0.2–0.25 s)
+
+---
+
+## [v2.10.0] — 2026-03-17
+
+### ✨ New Features
+- **Tariff zone countdown** (`tariff_zones[]`): colored pill next to price pill counts down time to next tariff zone transition
+- Configure named zones with `start`, `end`, `multiplier`; overnight zones (end < start) handled correctly
+- Color-coded: green for cheap (multiplier ≤ 0.6), yellow for standard, red for peak (≥ 1.2)
+- **EDF Tempo auto-mode**: when `tempo_color_today` is configured, shows countdown to midnight after 22:00 with next day's Tempo color
+
+### Config
+```yaml
+tariff_zones:
+  - name: Off-peak
+    start: '22:00'
+    end: '06:00'
+    multiplier: 0.5
+  - name: Peak
+    start: '06:00'
+    end: '22:00'
+    multiplier: 1.0
+```
+
+---
+
+## [v2.9.1] — 2026-03-17
+
+### ✨ New Features
+- **Solar sunrise wipe**: golden light-ray sweep + bloom plays on the solar orb the first time solar power goes above 0 W each day
+- One-shot per calendar day (persisted in localStorage); SVG clipPath technique, zero ongoing timers
+
+---
+
+## [v2.9.0] — 2026-03-17
+
+### ✨ New Features
+- **Dynamic particle color shift**: energy flow particles change color in real time by dominant energy source
+  - Solar-dominant: gold (#fbbf24)
+  - Mixed solar/grid: gradient blend
+  - Grid-only: blue (#60a5fa)
+  - Export (solar → grid): green (#34d399)
+  - V2G discharge: purple/violet
+- Color re-evaluated at every particle spawn interval via `_dynamicParticleColor()` using cached `this._patchData`
+
+---
+
+## [v2.8.0] — 2026-03-17
+
+### ✨ New Features
+- **7-day history modal**: tap the Daily Summary section to open a full-width modal showing 7 days of stacked import/solar/export bars and daily totals grid
+- Fetches real HA history via `hass.callApi`; results cached in localStorage for 1 hour
+
+---
+
+## [v2.7.0] — 2026-03-17
+
+### ✨ New Features
+- **Multiple chargers** (`chargers[]`): generalized V2C charger into an array; unlimited charger support
+- Legacy `v2c_*` config keys still work as the first charger entry (backward compatible)
+- Each charger shows live power, session energy, cost/h, V2G mode
+- Animated charging cable draws between each charger and its associated EV
+
+### Config
+```yaml
+chargers:
+  - name: V2C Trydan
+    power: sensor.v2c_power
+    session_energy: sensor.v2c_session_energy
+    image: /local/images/v2ctrydan-1.png
+    entity: sensor.v2c_power
+```
+
+---
+
+## [v2.6.0] — 2026-03-17
+
+### ✨ New Features
+- **Hourly spot-price bar chart** (`price_chart_entity`): 24-bar SVG chart with cheapest 25% bars green, expensive 25% red, current hour highlighted with white label
+- Best 3-hour consecutive window shown with dotted border
+- Supports Tibber, Nordpool, EPEX, ENTSOE attribute formats; falls back to `kwh_price` entity attributes
+- Collapsible panel with smooth chevron transition
+
+### Config
+```yaml
+price_chart_entity: sensor.nordpool_kwh_fi_eur_3_10_024
+```
+
+---
+
 ## [v2.5.0] — 2026-03-16
 
 ### ✨ New Features

@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.10.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -12,7 +12,7 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Solar production** — Current power, today's yield, and solar forecast
 - **Grid monitoring** — Bidirectional: tracks import and export (selling back to grid)
 - **EV Charger (V2C / Wallbox)** — Live charging power, session cost (solar vs grid), animated cable
-- **Multiple chargers** — `chargers[]` array supports any number of EVSE chargers
+- **Multiple chargers** — `chargers[]` array supports any number of EVSE chargers (v2.7.0)
 - **Electric vehicles** — Battery % ring gauge, range, ETA to target SoC, departure-time check
 - **Smart plug devices** — Individual device consumption tiles with anomaly detection
 - **Electricity cost** — Live cost estimate per hour, daily cost/savings summary, monthly budget tracker
@@ -20,7 +20,9 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Solar forecast** — Shows predicted production for today & tomorrow
 - **EDF Tempo banner** — Color-coded daily tariff indicator (BLEU/BLANC/ROUGE)
 - **Price alerts** — Price pill blinks red above a high threshold, turns green below a low threshold
+- **Hourly spot-price bar chart** — 24h SVG chart (cheapest 25% green, expensive 25% red, best 3h window) via `price_chart_entity` (v2.6.0)
 - **Price forecast chart** — Next-12h tariff bars with cheapest 2-hour charge window chip
+- **Tariff zone countdown** — Colored pill counting time to next tariff zone (`tariff_zones[]`) or EDF Tempo midnight (v2.10.0)
 - **Self-sufficiency gauge** — Circular arc gauge showing % of consumption covered by solar
 - **Battery/ESS** — Animated water-fill SoC + particles, charge/discharge arrows
 - **V2G support** — Reverse particles + "Discharging to home" when EV exports to house
@@ -35,6 +37,10 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **In-card event log** — Timestamped log of export starts, solar peaks, grid outages (last 20)
 - **Quick-action buttons** — Configurable pill buttons calling any HA service (scenes, switches, etc.)
 - **Hide sections / Compact mode** — Hide any section by name, or `compact: true` for mobile/sidebar
+- **Dynamic particle colors** — Particles shift gold/green/blue/purple in real time by dominant energy source (v2.9.0)
+- **Solar sunrise wipe** — One-shot golden light-ray sweep on solar orb when solar first turns on each day (v2.9.1)
+- **7-day history modal** — Tap Daily Summary to open stacked import/solar/export bars for the past 7 days (v2.8.0)
+- **Micro-interaction polish** — Hover scale, click ripple, orb glow, price pill hover effect, section fade-in (v2.10.1)
 - **WOW effects** — Aurora glow, grid shockwave, solar burst, export fireworks, thunderstorm SVG, battery water fill, time-of-day sky gradient, gossip idle lines, EV lightning storm, house heartbeat
 - **Weather integration** — Solar orb shows current conditions; weather popup with hourly forecast
 - **Fullscreen mode** — Full-screen toggle button in the header
@@ -231,6 +237,8 @@ hide:                          # hide individual sections by name (all shown by 
 | `quick_actions` | list | `[]` | Configurable action pill buttons (see below) |
 | `devices_sort` | boolean | `false` | Sort device tiles by live consumption |
 | `chargers` | list | `[]` | Additional EV chargers (see below) |
+| `price_chart_entity` | entity | — | Sensor with hourly spot-price forecast (Tibber, Nordpool, EPEX) for 24h bar chart (v2.6.0) |
+| `tariff_zones` | list | `[]` | Time-of-use tariff zones for countdown pill — each needs `name`, `start`, `end`, `multiplier` (v2.10.0) |
 | `evs` | list | `[]` | Electric vehicles (see below) |
 | `devices` | list | `[]` | Device monitors (see below) |
 
