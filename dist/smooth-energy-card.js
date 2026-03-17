@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.5.0
+ * Smooth Energy Card v2.6.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.5.0
+ * @version 2.6.0
  */
 
-const VERSION = '2.5.0';
+const VERSION = '2.6.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -57,6 +57,9 @@ const TRANSLATIONS = {
     ev_plan_window:(s,e,kwh) => `Best window: ${s}–${e} · ~${kwh} kWh free`,
     ev_plan_now_surplus: kw => `☀️ ${kw} surplus now — free charging available`,
     ev_plan_no_fc:'No forecast — showing live conditions',
+    price_fc_title:'Price Forecast',
+    price_fc_best:(s,e,avg) => `Best window: ${s}–${e} · avg ${avg} €/kWh`,
+    price_fc_current: p => `Current: ${p} €/kWh`,
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -105,6 +108,9 @@ const TRANSLATIONS = {
     ev_plan_window:(s,e,kwh) => `Meilleure fenêtre : ${s}–${e} · ~${kwh} kWh gratuits`,
     ev_plan_now_surplus: kw => `☀️ ${kw} surplus maintenant — charge gratuite disponible`,
     ev_plan_no_fc:'Pas de prévision — conditions en direct',
+    price_fc_title:'Prévision des prix',
+    price_fc_best:(s,e,avg) => `Meilleure fenêtre: ${s}–${e} · moy ${avg} €/kWh`,
+    price_fc_current: p => `Actuel: ${p} €/kWh`,
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -153,6 +159,9 @@ const TRANSLATIONS = {
     ev_plan_window:(s,e,kwh) => `Mejor ventana: ${s}–${e} · ~${kwh} kWh gratis`,
     ev_plan_now_surplus: kw => `☀️ ${kw} excedente ahora — carga gratuita disponible`,
     ev_plan_no_fc:'Sin previsión — mostrando condiciones en vivo',
+    price_fc_title:'Previsión de precios',
+    price_fc_best:(s,e,avg) => `Mejor ventana: ${s}–${e} · prom ${avg} €/kWh`,
+    price_fc_current: p => `Actual: ${p} €/kWh`,
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -201,6 +210,9 @@ const TRANSLATIONS = {
     ev_plan_window:(s,e,kwh) => `最佳窗口: ${s}–${e} · ~${kwh} kWh免费`,
     ev_plan_now_surplus: kw => `☀️ 当前盈余 ${kw} — 可免费充电`,
     ev_plan_no_fc:'无预报数据 — 显示实时状态',
+    price_fc_title:'电价预报',
+    price_fc_best:(s,e,avg) => `最佳时段: ${s}–${e} · 均价 ${avg} €/kWh`,
+    price_fc_current: p => `当前: ${p} €/kWh`,
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -249,6 +261,9 @@ const TRANSLATIONS = {
     ev_plan_window:(s,e,kwh) => `最適時間帯: ${s}–${e} · ~${kwh} kWh無料`,
     ev_plan_now_surplus: kw => `☀️ 現在余剰 ${kw} — 無料充電可能`,
     ev_plan_no_fc:'予報なし — リアルタイム状況を表示',
+    price_fc_title:'電力価格予報',
+    price_fc_best:(s,e,avg) => `最適時間帯: ${s}–${e} · 平均 ${avg} €/kWh`,
+    price_fc_current: p => `現在: ${p} €/kWh`,
   },
 };
 
@@ -357,6 +372,83 @@ function parseTariffForecast(hass, entity) {
     }
     return parseFloat(p) || 0;
   });
+}
+
+// Parse hourly spot price forecast from multiple integration attribute formats
+// Returns array of {hour: 0-23, price: number} for next 24h from now
+function parseSpotPriceForecast(hass, entity) {
+  if (!entity) return [];
+  const s = haState(hass, entity);
+  if (!s) return [];
+  const a = s.attributes;
+  const now = new Date();
+  const nowMs = now.getTime();
+  const slots = [];
+
+  // Helper: parse an ISO time string and return Date
+  const parseTime = t => { try { return new Date(t); } catch(e) { return null; } };
+
+  // Tibber: forecast array of {startsAt, total}
+  if (Array.isArray(a.forecast)) {
+    a.forecast.forEach(entry => {
+      const t = parseTime(entry.startsAt || entry.start || entry.datetime);
+      const price = entry.total ?? entry.price ?? entry.value ?? null;
+      if (t && price != null && !isNaN(price)) slots.push({ t, price: parseFloat(price) });
+    });
+  }
+  // Nordpool / Awattar: raw_today + raw_tomorrow arrays of {start, value}
+  if (!slots.length) {
+    const raw = [...(a.raw_today || []), ...(a.raw_tomorrow || [])];
+    raw.forEach(entry => {
+      const t = parseTime(entry.start || entry.datetime || entry.startsAt);
+      const price = entry.value ?? entry.price ?? entry.total ?? null;
+      if (t && price != null && !isNaN(price)) slots.push({ t, price: parseFloat(price) });
+    });
+  }
+  // EPEX / generic: prices_today + prices_tomorrow
+  if (!slots.length) {
+    const raw = [...(a.prices_today || []), ...(a.prices_tomorrow || [])];
+    raw.forEach(entry => {
+      const t = parseTime(entry.start || entry.datetime || entry.startsAt);
+      const price = entry.price ?? entry.value ?? entry.total ?? null;
+      if (t && price != null && !isNaN(price)) slots.push({ t, price: parseFloat(price) });
+    });
+  }
+  // ENTSOE / generic prices array
+  if (!slots.length) {
+    const raw = a.prices || a.today || a.data || [];
+    if (Array.isArray(raw)) {
+      raw.forEach((entry, i) => {
+        if (typeof entry === 'number') {
+          const t = new Date(now); t.setHours(i, 0, 0, 0);
+          slots.push({ t, price: entry });
+        } else if (entry && typeof entry === 'object') {
+          const t = parseTime(entry.start || entry.datetime || entry.startsAt);
+          const price = entry.price ?? entry.value ?? entry.total ?? null;
+          if (t && price != null && !isNaN(price)) slots.push({ t, price: parseFloat(price) });
+        }
+      });
+    }
+  }
+
+  // Fall back to simple array from parseTariffForecast if slots still empty
+  if (!slots.length) {
+    const simple = parseTariffForecast(hass, entity);
+    if (simple.length > 0) {
+      simple.forEach((price, i) => {
+        const t = new Date(now); t.setHours(i, 0, 0, 0);
+        slots.push({ t, price });
+      });
+    }
+  }
+
+  if (!slots.length) return [];
+
+  // Filter to next 24h from now, sort by time
+  const cutoff = nowMs + 24 * 3600000;
+  const filtered = slots.filter(s => s.t.getTime() >= nowMs - 3600000 && s.t.getTime() <= cutoff);
+  filtered.sort((a, b) => a.t - b.t);
+  return filtered.slice(0, 24).map(s => ({ hour: s.t.getHours(), price: s.price, t: s.t }));
 }
 
 function weatherIcon(condition) {
@@ -759,6 +851,20 @@ const CSS = `
   .price-chart { margin-bottom:10px; }
   .price-chart-title { font-size:0.62em; font-weight:700; color:#3d5280; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4px; }
   .price-chart svg { display:block; width:100%; border-radius:6px; overflow:visible; }
+  /* ── PRICE CHART PANEL (v2.6.0) ── */
+  .price-chart-panel { background:rgba(10,16,38,0.7); border:1px solid rgba(96,165,250,0.12); border-radius:12px; padding:10px 12px 8px; margin-bottom:10px; }
+  .pc-title { display:flex; justify-content:space-between; align-items:center; font-size:0.68em; font-weight:700; color:#4a5f8a; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px; cursor:pointer; }
+  .pc-title-text { display:flex; align-items:center; gap:5px; }
+  .pc-collapse { font-size:0.9em; color:#3d5280; transition:transform 0.2s; }
+  .price-chart-panel.collapsed .pc-body { display:none; }
+  .price-chart-panel.collapsed .pc-collapse { transform:rotate(-90deg); }
+  .pc-chart svg { display:block; width:100%; overflow:visible; }
+  .pc-window { font-size:0.7em; color:#34d399; background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.2); border-radius:8px; padding:4px 9px; margin-top:5px; }
+  .pc-current { font-size:0.68em; color:#4a5f8a; margin-top:3px; }
+  .pc-bar-cheap { fill:#34d399; }
+  .pc-bar-mid   { fill:#60a5fa; }
+  .pc-bar-exp   { fill:#f87171; }
+  .pc-bar-now   { stroke:#ffffff; stroke-width:1.5; }
 
   /* ── HISTORY MODAL ── */
   .history-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; }
@@ -1164,6 +1270,8 @@ class SmoothEnergyCard extends HTMLElement {
       weather_entity: '',           // weather.xxx — shows current condition icon on solar orb
       weather_forecast_entity: '',  // weather.xxx — used for hourly forecast popup (defaults to weather_entity)
       tariff_forecast: '',          // sensor with raw_today/prices array attribute
+      price_chart_entity: '',       // optional separate price forecast sensor (Tibber/Nordpool/EPEX/ENTSOE)
+      tariff_zones: [],             // [{name, start, end, multiplier}] — tariff zone countdown config
       chargers: [],                 // additional chargers: [{name, power, image, session_energy}]
       devices_sort: false,
       devices: [],
@@ -2145,63 +2253,101 @@ class SmoothEnergyCard extends HTMLElement {
     </div>`;
   }
 
-  // #4 Tariff price forecast chart (enhanced: up to 24h, current hour indicator, cheapest window)
+  // #4 Tariff price forecast chart + v2.6.0 enhanced hourly spot-price panel
   _buildPriceChart(d) {
-    const prices = d.tariffPrices;
-    if (!prices || prices.length < 2) return '';
-    const nowH = new Date().getHours();
-    // Show up to 24 bars — use all available data starting from current hour
-    const maxBars = Math.min(24, prices.length);
-    const upcoming = [...prices.slice(nowH), ...prices.slice(0, nowH)].slice(0, maxBars);
-    if (upcoming.length < 2) return '';
-    const W = 340, H = 36, barW = Math.floor(W / upcoming.length) - 1;
-    const maxP = Math.max(...upcoming) || 1;
-    const minP = Math.min(...upcoming);
-    const bars = upcoming.map((p, i) => {
-      const barH = Math.max(3, Math.round((p / maxP) * H));
+    const c = this._config;
+    const h = this._hass;
+
+    // --- Gather hourly slots ---
+    // Priority: price_chart_entity > kwh_price entity attributes > tariff_forecast flat array
+    let slots = [];
+    if (c.price_chart_entity && h) {
+      slots = parseSpotPriceForecast(h, c.price_chart_entity);
+    }
+    if (!slots.length && c.kwh_price && h) {
+      slots = parseSpotPriceForecast(h, c.kwh_price);
+    }
+    // Fall back to legacy flat tariffPrices array
+    if (!slots.length && d.tariffPrices && d.tariffPrices.length >= 2) {
+      const nowH = new Date().getHours();
+      const upcoming = [...d.tariffPrices.slice(nowH), ...d.tariffPrices.slice(0, nowH)].slice(0, 24);
+      upcoming.forEach((price, i) => {
+        const t = new Date(); t.setHours((nowH + i) % 24, 0, 0, 0);
+        slots.push({ hour: (nowH + i) % 24, price, t });
+      });
+    }
+
+    if (slots.length < 2) return '';
+
+    const now = new Date();
+    const nowH = now.getHours();
+    const W = 280, H = 50;
+    const n = slots.length;
+    const barW = Math.max(3, Math.floor((W - n) / n));
+    const prices = slots.map(s => s.price);
+    const maxP = Math.max(...prices) || 1;
+    const minP = Math.min(...prices);
+    const range = maxP - minP || 1;
+
+    // Color buckets: cheapest 25% = green, expensive 25% = red, middle = amber
+    const sorted = [...prices].sort((a, b) => a - b);
+    const q25 = sorted[Math.floor(sorted.length * 0.25)];
+    const q75 = sorted[Math.floor(sorted.length * 0.75)];
+
+    const bars = slots.map((s, i) => {
+      const barH = Math.max(3, Math.round(((s.price - minP) / range) * (H - 6) + 6));
       const x = i * (barW + 1);
       const y = H - barH;
-      const isNow = i === 0;
-      const col = p > maxP * 0.75 ? '#f87171' : p < maxP * 0.35 ? '#34d399' : '#60a5fa';
-      // Current hour gets a bright border highlight
-      const nowBorder = isNow ? `<rect x="${x-1}" y="${y-1}" width="${barW+2}" height="${barH+2}" rx="2" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.9"/>` : '';
-      return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="${isNow?1:0.65}"/>
-        ${isNow ? `<rect x="${x}" y="${y-2}" width="${barW}" height="2" rx="1" fill="${col}"/>` : ''}
-        ${nowBorder}`;
+      const isNow = s.hour === nowH && i === 0;
+      let cls = s.price <= q25 ? 'pc-bar-cheap' : (s.price >= q75 ? 'pc-bar-exp' : 'pc-bar-mid');
+      const nowClass = isNow ? ' pc-bar-now' : '';
+      return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="1" class="${cls}${nowClass}" opacity="${isNow ? '1' : '0.7'}"/>`;
     }).join('');
-    // "Now" arrow indicator
-    const nowX = barW / 2;
-    const nowArrow = `<polygon points="${nowX-4},${H+13} ${nowX+4},${H+13} ${nowX},${H+8}" fill="#60a5fa" opacity="0.8"/>`;
-    const labels = upcoming.map((p, i) => {
-      const h = (nowH + i) % 24;
-      // Show label every 3h, or every 6h if 24 bars
-      const interval = upcoming.length > 12 ? 6 : 3;
+
+    // Hour labels every 4h
+    const labels = slots.map((s, i) => {
+      const interval = n > 16 ? 6 : (n > 8 ? 4 : 2);
       if (i % interval !== 0) return '';
-      return `<text x="${i*(barW+1)+barW/2}" y="${H+9}" text-anchor="middle" font-size="7" fill="#3d5280">${h}h</text>`;
+      return `<text x="${i*(barW+1)+barW/2}" y="${H+10}" text-anchor="middle" font-size="7" fill="#3d5280">${String(s.hour).padStart(2,'0')}h</text>`;
     }).join('');
-    // Cheapest 2h window
-    let cheapChip = '';
-    if (upcoming.length >= 2) {
-      let best = null, bestAvg = Infinity;
-      for (let i = 0; i <= upcoming.length - 2; i++) {
-        const avg = (upcoming[i] + upcoming[i+1]) / 2;
-        if (avg < bestAvg) { bestAvg = avg; best = i; }
-      }
-      if (best !== null) {
-        const h1 = (nowH + best) % 24;
-        const h2 = (nowH + best + 2) % 24;
-        const hStr = `${String(h1).padStart(2,'0')}:00–${String(h2).padStart(2,'0')}:00`;
-        const isNow = best === 0;
-        cheapChip = `<div class="cheap-window-chip">🔌 ${isNow ? 'Cheapest now!' : 'Optimal window:'} ${hStr} · avg €${bestAvg.toFixed(3)}/kWh</div>`;
-      }
+
+    // Current hour pointer
+    const nowX = barW / 2;
+    const nowArrow = `<polygon points="${nowX-3},${H+9} ${nowX+3},${H+9} ${nowX},${H+5}" fill="#60a5fa" opacity="0.9"/>`;
+
+    // Best contiguous 3-hour window (lowest average sum)
+    let bestStart = null, bestAvg = Infinity;
+    for (let i = 0; i <= slots.length - 3; i++) {
+      const avg = (slots[i].price + slots[i+1].price + slots[i+2].price) / 3;
+      if (avg < bestAvg) { bestAvg = avg; bestStart = i; }
     }
-    const hoursLabel = upcoming.length > 12 ? `next ${upcoming.length}h` : `next ${upcoming.length}h`;
-    return `<div class="price-chart">
-      <div class="price-chart-title">⚡ Tariff ${hoursLabel}</div>
-      <svg viewBox="0 0 ${W} ${H+15}" height="${H+15}">
-        ${bars}${labels}${nowArrow}
-      </svg>
-    </div>${cheapChip}`;
+
+    let windowHtml = '';
+    if (bestStart !== null) {
+      const s1 = String(slots[bestStart].hour).padStart(2,'0') + ':00';
+      const endSlot = slots[Math.min(bestStart + 3, slots.length - 1)];
+      const s2 = String(endSlot.hour).padStart(2,'0') + ':00';
+      windowHtml = `<div class="pc-window">🔌 ${this._t('price_fc_best', s1, s2, bestAvg.toFixed(3))}</div>`;
+    }
+
+    const currentPriceHtml = d.price != null
+      ? `<div class="pc-current">${this._t('price_fc_current', d.price.toFixed(3))}</div>` : '';
+
+    return `<div class="price-chart-panel" data-uid="pc-panel">
+      <div class="pc-title" data-action="pc-collapse">
+        <span class="pc-title-text">💶 ${this._t('price_fc_title')} (${n}h)</span>
+        <span class="pc-collapse">▾</span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-chart">
+          <svg viewBox="0 0 ${W} ${H+12}" height="${H+12}">
+            ${bars}${labels}${nowArrow}
+          </svg>
+        </div>
+        ${windowHtml}
+        ${currentPriceHtml}
+      </div>
+    </div>`;
   }
 
   // #2 History modal — 7-day bar chart (async, called via tap)
@@ -3827,6 +3973,14 @@ class SmoothEnergyCard extends HTMLElement {
             });
           });
         }
+      });
+    });
+
+    // Price chart collapse toggle (v2.6.0)
+    shadow.querySelectorAll('[data-action="pc-collapse"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panel = btn.closest('.price-chart-panel');
+        if (panel) panel.classList.toggle('collapsed');
       });
     });
 
