@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.10.0
+ * Smooth Energy Card v2.10.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.10.0
+ * @version 2.10.1
  */
 
-const VERSION = '2.10.0';
+const VERSION = '2.10.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1235,7 +1235,35 @@ const CSS = `
   .sunrise-wipe { animation: sunrise-sweep 1.2s ease-in-out forwards; }
   @keyframes sunrise-bloom { 0%{filter:brightness(1)} 30%{filter:brightness(1.9) drop-shadow(0 0 12px #fbbf24)} 100%{filter:brightness(1)} }
   .sunrise-bloom { animation: sunrise-bloom 1.4s ease-out forwards; }
+
+  /* ── v2.10.1 Micro-interaction polish ── */
+  @keyframes fade-in-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  @keyframes ripple-out { 0%{transform:scale(0);opacity:0.45} 100%{transform:scale(2.8);opacity:0} }
+  @keyframes orb-hover-ring { 0%,100%{opacity:0.15;r:52} 50%{opacity:0.4;r:58} }
+
+  /* Hover scale on EV + device cards */
+  .ev-card { transition:border-color 0.4s,box-shadow 0.4s,transform 0.18s; }
+  .ev-card:hover { transform:scale(1.035); box-shadow:0 6px 24px rgba(0,0,0,0.35); }
+  .device { transition:border-color 0.3s,background 0.3s,transform 0.18s; }
+  .device:hover { transform:scale(1.04); box-shadow:0 4px 18px rgba(0,0,0,0.3); }
+
+  /* Ripple container overlay */
+  .ripple-overlay { position:absolute; inset:0; border-radius:inherit; overflow:hidden; pointer-events:none; }
+  .ripple-circle { position:absolute; border-radius:50%; background:rgba(96,165,250,0.22); animation:ripple-out 0.55s ease-out forwards; transform-origin:center; pointer-events:none; }
+
+  /* Price pill interactive */
+  .price-pill { cursor:pointer; transition:filter 0.18s,box-shadow 0.18s; }
+  .price-pill:hover { filter:brightness(1.2); box-shadow:0 0 12px rgba(96,165,250,0.25); }
+
+  /* Smooth section entry */
+  .stats-tab-panel.active { animation:fade-in-up 0.22s ease-out; }
+  .ev-section, .devices-section { animation:fade-in-up 0.25s ease-out; }
+  .charging-reco-row, .surplus { animation:fade-in-up 0.2s ease-out; }
+
+  /* Orb hover glow (applied via JS class) */
+  .orb-glow-hover { filter:drop-shadow(0 0 12px currentColor) brightness(1.15); transition:filter 0.25s; }
 `;
+
 
 
 if (!document.getElementById('sec-anim-styles')) {
@@ -4264,6 +4292,26 @@ class SmoothEnergyCard extends HTMLElement {
     weatherPopup.addEventListener('mouseleave', hideWp);
   }
 
+  // v2.10.1: Spawn a CSS ripple circle at the click position within a target element
+  _addRipple(el, e) {
+    if (!el) return;
+    let overlay = el.querySelector('.ripple-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'ripple-overlay';
+      el.appendChild(overlay);
+    }
+    const rect = el.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = (e.clientX - rect.left) - size / 2;
+    const y = (e.clientY - rect.top)  - size / 2;
+    const circle = document.createElement('div');
+    circle.className = 'ripple-circle';
+    circle.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px`;
+    overlay.appendChild(circle);
+    circle.addEventListener('animationend', () => circle.remove());
+  }
+
   _setupTapHandlers(shadow) {
     const c = this._config;
     // Stats popup (mouseover)
@@ -4317,6 +4365,10 @@ class SmoothEnergyCard extends HTMLElement {
     orbMap.forEach(({ uid, entity, label, color }) => {
       const orb = shadow.querySelector(`[data-uid="${uid}"]`);
       if (!orb || !entity) return;
+      // v2.10.1: hover glow on orb
+      orb.style.cursor = 'pointer';
+      orb.addEventListener('mouseenter', () => orb.classList.add('orb-glow-hover'));
+      orb.addEventListener('mouseleave', () => orb.classList.remove('orb-glow-hover'));
       orb.addEventListener('click', (e) => {
         e.stopPropagation();
         const panel = shadow.querySelector('[data-uid="orb-detail"]');
@@ -4362,14 +4414,14 @@ class SmoothEnergyCard extends HTMLElement {
       shadow.querySelectorAll('.ev-charger').forEach((chargerCard, i) => {
         const charger = (d0.chargerList || [])[i];
         const entity = charger?.entity;
-        if (entity) chargerCard.addEventListener('click', () => this._moreInfo(entity));
+        chargerCard.addEventListener('click', (e) => { this._addRipple(chargerCard, e); if (entity) this._moreInfo(entity); });
       });
     }
     // EV cards
     shadow.querySelectorAll('.ev-card:not(.ev-charger)').forEach((card, i) => {
       const ev = (c.evs || [])[i];
       const entity = ev && (ev.battery || ev.range);
-      if (entity) card.addEventListener('click', () => this._moreInfo(entity));
+      card.addEventListener('click', (e) => { this._addRipple(card, e); if (entity) this._moreInfo(entity); });
     });
     // History modal — tap daily summary section title
     const dailySummarySection = shadow.querySelector('[data-uid="daily-summary-tab"]');
@@ -4404,6 +4456,7 @@ class SmoothEnergyCard extends HTMLElement {
       tile.addEventListener('pointerleave', () => clearTimeout(pressTimer));
       tile.addEventListener('click', (e) => {
         e.stopPropagation();
+        this._addRipple(tile, e);
         const prev = this._expandedDevEntity;
         this._expandedDevEntity = (prev === entity) ? null : entity;
         // Re-render devices grid to reflect new expanded state
