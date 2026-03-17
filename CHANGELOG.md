@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 
 ---
 
+## [v2.11.0] — 2026-03-18
+
+### ✨ New Features
+
+#### 🫧 Power-Proportional Bubble Sizing
+Device tiles, EV cards and charger cards now grow in proportion to their live power draw:
+- **Off / idle** → base size (78px)
+- **50–300 W** → `pow-sm`: slightly wider
+- **300–1500 W** → `pow-md`: larger tile, scaled icon, bolder power text
+- **1500 W+** → `pow-lg`: prominently sized with amber/purple glow
+
+EV cards resize by charging power; charger cards by charger power.
+
+#### ⚙️ Visual Hide-Section Checkboxes in Editor
+Replaced the raw comma-separated `hide:` text input with 18 labelled checkboxes:
+- **Bottom panels**: 📊 Weekly Heatmap, 🏅 Personal Records, 📋 Event Log
+- **Stats & banners**: Savings, Yesterday Chips, CO₂, Budget, Power Chart, Price Chart
+- **Smart features**: EV Optimizer, Device Scheduler, Grid Alerts, Eco Badges, Tempo, Gauge, Surplus, Reco, Forecast
+- Tick to hide, untick to show — instant update, no typing required
+
+### 🔧 CI Fix
+- GitHub Actions updated to Node.js 24 — removes deprecation warning in release workflow
+
+---
+
 ## [v2.10.1] — 2026-03-17
 
 ### ✨ New Features

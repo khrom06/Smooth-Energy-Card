@@ -1,7 +1,7 @@
 # Smooth Energy Card
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
-[![Version](https://img.shields.io/badge/version-2.10.1-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
+[![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)](https://github.com/khrom06/Smooth-Energy-Card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A beautiful, animated Home Assistant Lovelace card for visualizing your home energy in real-time.
@@ -41,6 +41,8 @@ A beautiful, animated Home Assistant Lovelace card for visualizing your home ene
 - **Solar sunrise wipe** — One-shot golden light-ray sweep on solar orb when solar first turns on each day (v2.9.1)
 - **7-day history modal** — Tap Daily Summary to open stacked import/solar/export bars for the past 7 days (v2.8.0)
 - **Micro-interaction polish** — Hover scale, click ripple, orb glow, price pill hover effect, section fade-in (v2.10.1)
+- **Power-proportional bubble sizing** — Device tiles, EV cards and charger cards grow visually (4 tiers: off / 50 W / 300 W / 1500 W+) with glow on high-draw tiles (v2.11.0)
+- **Visual hide-section editor** — 18 labelled checkboxes (Heatmap, Records, Event Log, CO₂, Savings…) replace raw comma-input for hiding sections (v2.11.0)
 - **WOW effects** — Aurora glow, grid shockwave, solar burst, export fireworks, thunderstorm SVG, battery water fill, time-of-day sky gradient, gossip idle lines, EV lightning storm, house heartbeat
 - **Weather integration** — Solar orb shows current conditions; weather popup with hourly forecast
 - **Fullscreen mode** — Full-screen toggle button in the header
