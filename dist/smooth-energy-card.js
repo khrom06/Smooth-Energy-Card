@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.18.0
+ * Smooth Energy Card v2.19.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.18.0
+ * @version 2.19.0
  */
 
-const VERSION = '2.18.0';
+const VERSION = '2.19.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -725,7 +725,7 @@ const SVG_ICONS = {
 
 // ─── Card CSS ─────────────────────────────────────────────────────────────────
 const CSS = `
-  :host { display: block; font-family: var(--paper-font-body1_-_font-family,'Roboto',sans-serif); }
+  :host { display: block; font-family: var(--paper-font-body1_-_font-family,'Roboto',sans-serif); transition: filter 3s ease; }
   :host(.fullscreen-mode) { position:fixed !important; top:0 !important; left:0 !important; right:0 !important; bottom:0 !important; z-index:9999 !important; overflow-y:auto !important; }
   :host(.fullscreen-mode) .card { border-radius:0 !important; min-height:100vh; }
   .fullscreen-btn { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.2); border-radius:8px; padding:5px 9px; cursor:pointer; font-size:0.82em; color:#60a5fa; transition:background 0.2s; }
@@ -1489,6 +1489,8 @@ class SmoothEnergyCard extends HTMLElement {
       battery_purchase_date: '',    // YYYY-MM-DD string
       // Feature 10: Solar divert tracker
       diverter_today_kwh: '',       // kWh diverted today (daily reset)
+      // v2.19.0: Auto-dim
+      auto_dim: true,               // false to disable auto-dimming after sunset
     };
   }
 
@@ -1962,6 +1964,9 @@ class SmoothEnergyCard extends HTMLElement {
 
     // v2.16.0: Ambient color saturation by self-sufficiency
     this._updateAmbientColor(d);
+
+    // v2.19.0: Auto-dim after sunset
+    this._updateAutoDim();
 
     // v2.9.1: Sunrise wipe animation — fire once per day when solar first turns positive
     const today = new Date().toISOString().slice(0, 10);
@@ -4498,6 +4503,20 @@ class SmoothEnergyCard extends HTMLElement {
     weatherPopup.addEventListener('mouseleave', hideWp);
   }
 
+  // v2.19.0: Auto-dim after sunset via sun.sun entity or time fallback
+  _updateAutoDim() {
+    if (this._config.auto_dim === false) { this.style.filter = ''; return; }
+    const sunState = this._hass?.states?.['sun.sun']?.state;
+    let isNight;
+    if (sunState) {
+      isNight = sunState === 'below_horizon';
+    } else {
+      const h = new Date().getHours();
+      isNight = h < 6 || h >= 22;
+    }
+    this.style.filter = isNight ? 'brightness(0.72) saturate(0.80)' : '';
+  }
+
   // v2.16.0: Update card ambient color overlay based on self-sufficiency
   _updateAmbientColor(d) {
     const selfSuff = clamp(d.solarW / Math.max(d.houseW, 1), 0, 1.5);
@@ -5295,13 +5314,21 @@ class SmoothEnergyCardEditor extends HTMLElement {
                 <span class="hint">Ideal for mobile or sidebar dashboards.</span>
               </div>
             </div>
-            <div class="row cols-1">
+            <div class="row cols-2">
               <div class="field">
                 <label>Sort devices by consumption</label>
                 <select data-key="devices_sort">
                   <option value="false"${!c.devices_sort?' selected':''}>No — keep config order</option>
                   <option value="true"${c.devices_sort?' selected':''}>Yes — highest consumer first</option>
                 </select>
+              </div>
+              <div class="field">
+                <label>Auto-dim at night <span style="color:#aaa;font-weight:normal">(v2.19)</span></label>
+                <select data-key="auto_dim">
+                  <option value="true"${c.auto_dim!==false?' selected':''}>On — dim after sunset</option>
+                  <option value="false"${c.auto_dim===false?' selected':''}>Off — always full brightness</option>
+                </select>
+                <span class="hint">Uses sun.sun entity or time fallback (22:00–06:00).</span>
               </div>
             </div>
             <div class="row cols-1">
