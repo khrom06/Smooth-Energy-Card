@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.6.0
+ * Smooth Energy Card v2.7.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.6.0
+ * @version 2.7.0
  */
 
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1608,6 +1608,50 @@ class SmoothEnergyCard extends HTMLElement {
         const firstActive = (c.chargers || []).find(ch => ch.power && Math.abs(toWatts(h, ch.power)) > 10);
         return firstActive ? toWatts(h, firstActive.power) : 0;
       })(),
+      // v2.7.0: Unified charger list — merge legacy v2c_* as first entry + chargers[] array
+      chargerList: (() => {
+        const list = [];
+        // Legacy v2c_* entry
+        if (c.v2c_power) {
+          const powerW = v2cW;
+          const sessionKwh = v2cSessionKwh;
+          const isActive = Math.abs(powerW) > 10;
+          const isV2g = powerW < -10;
+          const sfreeW = isActive ? Math.min(solarW, Math.abs(powerW)) : 0;
+          const gridW2 = isActive ? Math.max(0, Math.abs(powerW) - solarW) : 0;
+          const costH2 = (price != null && isActive) ? (gridW2 / 1000) * price : null;
+          const sessEst = (sessionKwh > 0 && price != null && isActive && powerW > 10)
+            ? sessionKwh * (powerW > 0 ? gridW2 / Math.max(powerW, 1) : 1) * price : null;
+          list.push({
+            name: 'V2C Charger',
+            powerW, sessionKwh, image: c.v2c_image || null,
+            entity: c.v2c_power,
+            isActive, isV2g,
+            solarFreeW: sfreeW, gridChargeW: gridW2,
+            costPerHour: costH2, sessionCost: sessEst,
+            isLegacy: true,
+          });
+        }
+        // chargers[] array entries
+        (c.chargers || []).forEach(ch => {
+          const pw = ch.power ? toWatts(h, ch.power) : 0;
+          const skwh = ch.session_energy ? numState(h, ch.session_energy, null) : null;
+          const isAct = Math.abs(pw) > 10;
+          const sfree2 = isAct ? Math.min(solarW, Math.abs(pw)) : 0;
+          const gcw2 = isAct ? Math.max(0, Math.abs(pw) - solarW) : 0;
+          const cph = (price != null && isAct) ? (gcw2 / 1000) * price : null;
+          list.push({
+            name: ch.name || 'Charger',
+            powerW: pw, sessionKwh: skwh, image: ch.image || null,
+            entity: ch.power || ch.entity || null,
+            isActive: isAct, isV2g: pw < -10,
+            solarFreeW: sfree2, gridChargeW: gcw2,
+            costPerHour: cph, sessionCost: null,
+            isLegacy: false,
+          });
+        });
+        return list;
+      })(),
       // Grid connectivity (islanding detection)
       gridConnected: c.grid_connected ? strState(h, c.grid_connected) !== 'off' : true,
       // Daily net cost (import cost minus export revenue)
@@ -1906,28 +1950,45 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _patchEvGrid(card, d) {
-    // Charger card
-    const chargerCard = card.querySelector('.ev-charger');
-    if (chargerCard) {
-      const active = d.chargerActive;
+    // v2.7.0: Patch all charger cards from chargerList
+    const chargerCards = Array.from(card.querySelectorAll('.ev-charger'));
+    (d.chargerList || []).forEach((charger, i) => {
+      const chargerCard = chargerCards[i];
+      if (!chargerCard) return;
+      const active = charger.isActive;
       if (active) chargerCard.classList.add('plugged');
       else chargerCard.classList.remove('plugged');
-
-      if (!active) chargerCard.setAttribute('data-tip', 'V2C Charger\nIdle — no vehicle connected');
+      if (!active) chargerCard.setAttribute('data-tip', `${charger.name}\nIdle — no vehicle connected`);
       else chargerCard.removeAttribute('data-tip');
-
       const chargerImg = chargerCard.querySelector('.v2c-img');
       if (chargerImg) chargerImg.className = `v2c-img${active ? ' plugged' : ''}`;
-
-      const content = chargerCard.querySelector('[data-uid="charger-content"]');
-      if (content) content.innerHTML = d.v2gActive
-        ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(d.v2cW))}</div><div class="charger-sub" style="color:#22c55e">${this._t('discharging')}</div>`
-        : (active
-          ? `<div class="charger-power">${fmtW(d.v2cW)}</div><div class="charger-sub">${this._t('charging')}</div>${this._buildChargerCostDisplay(d)}`
-          : `<div class="charger-idle">${this._t('charger_idle')}</div>`);
+      const contentUid = (charger.isLegacy && i === 0) ? 'charger-content' : `charger-content-${i}`;
+      const content = chargerCard.querySelector(`[data-uid="${contentUid}"]`);
+      if (content) {
+        const isV2g = charger.isV2g;
+        let costHtml = '';
+        if (active && !isV2g) {
+          const isFree = charger.gridChargeW < 10;
+          const isMixed = charger.solarFreeW > 10 && charger.gridChargeW > 10;
+          const solarPct = charger.powerW > 0 ? Math.round((charger.solarFreeW / charger.powerW) * 100) : 0;
+          if (isFree) costHtml = `<div class="cost-free">${this._t('cost_free')}</div><div class="cost-mixed">${this._t('solar_100')}</div>`;
+          else if (isMixed) {
+            const est = charger.sessionCost != null ? `~${charger.sessionCost.toFixed(2)} €` : (charger.costPerHour != null ? `${charger.costPerHour.toFixed(3)} €/h` : '');
+            costHtml = `<div class="cost-paid">${est}</div><div class="cost-mixed">☀️ ${solarPct}% free · ⚡ ${100-solarPct}% grid</div>`;
+          } else {
+            const est = charger.sessionCost != null ? `~${charger.sessionCost.toFixed(2)} €` : (charger.costPerHour != null ? `${charger.costPerHour.toFixed(3)} €/h` : '—');
+            costHtml = `<div class="cost-paid">${est}</div><div class="cost-mixed">${this._t('grid_only')}</div>`;
+          }
+        }
+        content.innerHTML = isV2g
+          ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(charger.powerW))}</div><div class="charger-sub" style="color:#22c55e">${this._t('discharging')}</div>`
+          : (active
+            ? `<div class="charger-power">${fmtW(charger.powerW)}</div><div class="charger-sub">${this._t('charging')}</div>${costHtml}`
+            : `<div class="charger-idle">${this._t('charger_idle')}</div>`);
+      }
       const nameEl = chargerCard.querySelector('.ev-name');
-      if (nameEl) nameEl.textContent = d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger';
-    }
+      if (nameEl) nameEl.textContent = charger.isV2g ? charger.name + ' ▲ V2G' : charger.name;
+    });
 
     // EV cards
     const evCards = Array.from(card.querySelectorAll('.ev-card:not(.ev-charger)'));
@@ -2809,8 +2870,7 @@ class SmoothEnergyCard extends HTMLElement {
       ${!hide.has('ev') ? `<div class="ev-section">
         <div class="section-title">${this._t('ev_section')}</div>
         <div class="ev-grid" data-uid="ev-grid">
-          ${this._buildCharger(d)}
-          ${d.extraChargers.map((ch, i) => this._buildExtraCharger(ch, i)).join('')}
+          ${d.chargerList.map((charger, i) => this._buildChargerFromObj(charger, d, i)).join('')}
           ${d.evData.map((ev, i) => this._buildEV(ev, i)).join('')}
         </div>
       </div>` : ''}
@@ -3114,6 +3174,7 @@ class SmoothEnergyCard extends HTMLElement {
   }
 
   _buildCharger(d) {
+    // Legacy compatibility shim — used by _patchEvGrid
     const c = this._config;
     if (!c.v2c_power) return '';
     const active = d.chargerActive;
@@ -3130,6 +3191,52 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="ev-name">${d.v2gActive ? 'V2C ▲ V2G' : 'V2C Charger'}</div>
         ${img}
         <div data-uid="charger-content">
+          ${content}
+        </div>
+      </div>`;
+  }
+
+  // v2.7.0: Build a charger tile from a chargerList entry
+  _buildChargerFromObj(charger, d, idx) {
+    const active = charger.isActive;
+    const isV2g = charger.isV2g;
+    // Image or default icon
+    const img = charger.image
+      ? `<img src="${charger.image}" class="v2c-img${active?' plugged':''}" alt="${charger.name}" onerror="this.style.display='none'">`
+      : `<div style="width:32px;height:32px;color:${active?'#c084fc':'#2a1a5a'}">${SVG_ICONS.charge}</div>`;
+    // Cost display
+    let costHtml = '';
+    if (active && !isV2g) {
+      const isFree = charger.gridChargeW < 10;
+      const isMixed = charger.solarFreeW > 10 && charger.gridChargeW > 10;
+      const solarPct = charger.powerW > 0 ? Math.round((charger.solarFreeW / charger.powerW) * 100) : 0;
+      if (isFree) {
+        costHtml = `<div class="cost-free">${this._t('cost_free')}</div><div class="cost-mixed">${this._t('solar_100')}</div>`;
+      } else if (isMixed) {
+        const est = charger.sessionCost != null ? `~${charger.sessionCost.toFixed(2)} €` : (charger.costPerHour != null ? `${charger.costPerHour.toFixed(3)} €/h` : '');
+        costHtml = `<div class="cost-paid">${est}</div><div class="cost-mixed">☀️ ${solarPct}% free · ⚡ ${100-solarPct}% grid</div>`;
+      } else {
+        const est = charger.sessionCost != null ? `~${charger.sessionCost.toFixed(2)} €` : (charger.costPerHour != null ? `${charger.costPerHour.toFixed(3)} €/h` : '—');
+        costHtml = `<div class="cost-paid">${est}</div><div class="cost-mixed">${this._t('grid_only')}</div>`;
+      }
+      if (charger.sessionKwh != null && charger.sessionKwh > 0) {
+        costHtml += `<div style="font-size:0.58em;color:#4a3a7a;margin-top:2px">Session: ${fmtKwh(charger.sessionKwh)}</div>`;
+      }
+    }
+    const content = isV2g
+      ? `<div class="charger-power" style="color:#34d399">${fmtW(Math.abs(charger.powerW))}</div><div class="charger-sub" style="color:#22c55e">${this._t('discharging')}</div>`
+      : (active
+        ? `<div class="charger-power">${fmtW(charger.powerW)}</div><div class="charger-sub">${this._t('charging')}</div>${costHtml}`
+        : `<div class="charger-idle">${this._t('charger_idle')}</div>`);
+    // For legacy entry with uid (first entry with legacy flag = patchable)
+    const uidAttr = (charger.isLegacy && idx === 0) ? ' data-uid="charger-legacy"' : '';
+    const tipAttr = active ? '' : `data-tip="${charger.name}\nIdle — no vehicle connected"`;
+    const dataChIdx = !charger.isLegacy ? ` data-extra-charger="${idx}"` : '';
+    return `
+      <div class="ev-card ev-charger${active?' plugged':''}"${uidAttr}${dataChIdx} ${tipAttr}>
+        <div class="ev-name">${isV2g ? charger.name + ' ▲ V2G' : charger.name}</div>
+        ${img}
+        <div data-uid="${charger.isLegacy && idx===0 ? 'charger-content' : 'charger-content-'+idx}">
           ${content}
         </div>
       </div>`;
@@ -3910,9 +4017,15 @@ class SmoothEnergyCard extends HTMLElement {
     const flowWrapEl = shadow.querySelector('[data-uid="flow-wrap"]');
     if (flowWrapEl) this._setupWeatherPopup(flowWrapEl);
 
-    // Charger card
-    const chargerCard = shadow.querySelector('.ev-charger');
-    if (chargerCard && c.v2c_power) chargerCard.addEventListener('click', () => this._moreInfo(c.v2c_power));
+    // Charger cards (v2.7.0: multiple chargers support)
+    const d0 = this._data();
+    if (d0) {
+      shadow.querySelectorAll('.ev-charger').forEach((chargerCard, i) => {
+        const charger = (d0.chargerList || [])[i];
+        const entity = charger?.entity;
+        if (entity) chargerCard.addEventListener('click', () => this._moreInfo(entity));
+      });
+    }
     // EV cards
     shadow.querySelectorAll('.ev-card:not(.ev-charger)').forEach((card, i) => {
       const ev = (c.evs || [])[i];
