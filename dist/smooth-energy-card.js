@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.9.1
+ * Smooth Energy Card v2.10.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.9.1
+ * @version 2.10.0
  */
 
-const VERSION = '2.9.1';
+const VERSION = '2.10.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -60,6 +60,7 @@ const TRANSLATIONS = {
     price_fc_title:'Price Forecast',
     price_fc_best:(s,e,avg) => `Best window: ${s}–${e} · avg ${avg} €/kWh`,
     price_fc_current: p => `Current: ${p} €/kWh`,
+    tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
   fr: {
     solar:'SOLAIRE', house:'MAISON', export:'EXPORT', import:'IMPORT',
@@ -111,6 +112,7 @@ const TRANSLATIONS = {
     price_fc_title:'Prévision des prix',
     price_fc_best:(s,e,avg) => `Meilleure fenêtre: ${s}–${e} · moy ${avg} €/kWh`,
     price_fc_current: p => `Actuel: ${p} €/kWh`,
+    tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
   es: {
     solar:'SOLAR', house:'CASA', export:'EXPORTAR', import:'IMPORTAR',
@@ -162,6 +164,7 @@ const TRANSLATIONS = {
     price_fc_title:'Previsión de precios',
     price_fc_best:(s,e,avg) => `Mejor ventana: ${s}–${e} · prom ${avg} €/kWh`,
     price_fc_current: p => `Actual: ${p} €/kWh`,
+    tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
   zh: {
     solar:'太阳能', house:'用电', export:'并网', import:'用网',
@@ -213,6 +216,7 @@ const TRANSLATIONS = {
     price_fc_title:'电价预报',
     price_fc_best:(s,e,avg) => `最佳时段: ${s}–${e} · 均价 ${avg} €/kWh`,
     price_fc_current: p => `当前: ${p} €/kWh`,
+    tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
   ja: {
     solar:'ソーラー', house:'消費', export:'売電', import:'買電',
@@ -264,6 +268,7 @@ const TRANSLATIONS = {
     price_fc_title:'電力価格予報',
     price_fc_best:(s,e,avg) => `最適時間帯: ${s}–${e} · 平均 ${avg} €/kWh`,
     price_fc_current: p => `現在: ${p} €/kWh`,
+    tariff_countdown: (hm, name) => `⏱ ${hm} → ${name}`,
   },
 };
 
@@ -1218,6 +1223,13 @@ const CSS = `
   .streak-best{background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);color:#fcd34d;animation:streak-pulse 2s ease-in-out infinite}
   @keyframes streak-pulse{0%,100%{opacity:1}50%{opacity:0.7}}
 
+  /* ── v2.10.0: Tariff zone countdown timer ── */
+  .tariff-countdown { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; font-size:0.7em; font-weight:700; border:1px solid; margin-left:6px; white-space:nowrap; }
+  .tc-cheap { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); color:#34d399; }
+  .tc-peak  { background:rgba(251,191,36,0.1);  border-color:rgba(251,191,36,0.3);  color:#fbbf24; }
+  .tc-high  { background:rgba(248,113,113,0.08); border-color:rgba(248,113,113,0.25); color:#f87171; }
+  .tc-tempo { background:rgba(59,130,246,0.1);  border-color:rgba(59,130,246,0.25);  color:#60a5fa; }
+
   /* ── v2.9.1: Solar sunrise wipe animation ── */
   @keyframes sunrise-sweep { from { transform: translateX(-90px) } to { transform: translateX(90px) } }
   .sunrise-wipe { animation: sunrise-sweep 1.2s ease-in-out forwards; }
@@ -1827,6 +1839,10 @@ class SmoothEnergyCard extends HTMLElement {
       else if (!isNaN(lo) && d.price <= lo) pricePill.classList.add('alert-low');
     }
 
+    // Tariff countdown
+    const tariffCountdownEl = card.querySelector('[data-uid="tariff-countdown"]');
+    if (tariffCountdownEl) tariffCountdownEl.innerHTML = this._buildTariffCountdown(d);
+
     // Grid outage banner
     const gridOutageEl = card.querySelector('[data-uid="grid-outage"]');
     if (gridOutageEl) gridOutageEl.innerHTML = this._buildGridOutage(d);
@@ -2289,6 +2305,92 @@ class SmoothEnergyCard extends HTMLElement {
     const reco = getChargingReco(d, this._config, t);
     if (!reco) return '';
     return `<div class="charging-reco ${reco.cls}"><span class="reco-icon">${reco.icon}</span><span class="reco-text">${reco.text}</span></div>`;
+  }
+
+  // v2.10.0: Tariff zone countdown pill
+  _buildTariffCountdown(d) {
+    const c = this._config;
+    const now = new Date();
+    const nowH = now.getHours();
+    const nowM = now.getMinutes();
+    const nowTotalMins = nowH * 60 + nowM;
+
+    // Helper: parse "HH:MM" string to minutes since midnight
+    const parseTime = t => {
+      const m = (t || '').match(/(\d{1,2}):(\d{2})/);
+      if (!m) return null;
+      return parseInt(m[1]) * 60 + parseInt(m[2]);
+    };
+
+    // Helper: format minutes to "Xh Ym" or "Ym"
+    const fmtCountdown = mins => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h === 0) return `${m}m`;
+      if (m === 0) return `${h}h`;
+      return `${h}h ${m}m`;
+    };
+
+    // Tempo support: if tempo_color_today configured and time >= 22:00, count to midnight
+    if (c.tempo_color_today && nowH >= 22) {
+      const minsToMidnight = (24 * 60) - nowTotalMins;
+      const nextDayColor = d.tempoTomorrow ? d.tempoTomorrow.replace(/\w/, s => s.toUpperCase()) : 'next day';
+      return `<span class="tariff-countdown tc-tempo" data-uid="tariff-countdown">${this._t('tariff_countdown', fmtCountdown(minsToMidnight), nextDayColor)}</span>`;
+    }
+
+    // tariff_zones[] array support
+    const zones = c.tariff_zones || [];
+    if (!zones.length) return '';
+
+    // Find the current zone and next transition
+    let currentZone = null;
+    let nextZone = null;
+    let minsToNext = null;
+
+    for (let i = 0; i < zones.length; i++) {
+      const zone = zones[i];
+      const startM = parseTime(zone.start);
+      const endM   = parseTime(zone.end);
+      if (startM == null || endM == null) continue;
+
+      // Handle overnight zones (end < start, e.g. 22:00-06:00)
+      let inZone = false;
+      if (endM > startM) {
+        inZone = nowTotalMins >= startM && nowTotalMins < endM;
+      } else {
+        // overnight: active from startM to end of day OR from 0 to endM
+        inZone = nowTotalMins >= startM || nowTotalMins < endM;
+      }
+
+      if (inZone) {
+        currentZone = zone;
+        // Time to end of this zone
+        let toEnd;
+        if (endM > startM) {
+          toEnd = endM - nowTotalMins;
+        } else {
+          // overnight: count to endM the next day if we're past startM
+          if (nowTotalMins >= startM) {
+            toEnd = (24 * 60 - nowTotalMins) + endM;
+          } else {
+            toEnd = endM - nowTotalMins;
+          }
+        }
+        minsToNext = toEnd;
+        // Find the next zone (the one that starts at endM)
+        nextZone = zones.find(z => parseTime(z.start) === endM) || zones[(i + 1) % zones.length];
+        break;
+      }
+    }
+
+    if (!currentZone || minsToNext == null) return '';
+
+    // Determine color class
+    const mult = parseFloat(currentZone.multiplier) || 1;
+    const cls = mult <= 0.6 ? 'tc-cheap' : (mult >= 1.2 ? 'tc-high' : 'tc-peak');
+    const nextName = nextZone ? (nextZone.name || 'next zone') : 'next zone';
+
+    return `<span class="tariff-countdown ${cls}" data-uid="tariff-countdown">${this._t('tariff_countdown', fmtCountdown(minsToNext), nextName)}</span>`;
   }
 
   _buildEcoBadges(d) {
@@ -2972,6 +3074,7 @@ class SmoothEnergyCard extends HTMLElement {
         <div style="display:flex;align-items:center;gap:8px">
           <span data-uid="header-score">${this._buildHeaderScore(d)}</span>
           <div class="price-pill"><div class="val" data-uid="price-val">${priceStr}</div><div class="lbl">€/kWh</div></div>
+          <span data-uid="tariff-countdown">${this._buildTariffCountdown(d)}</span>
           <div class="share-btn" data-action="share" title="Energy stats">📋
             <div class="stats-popup" data-uid="stats-popup">
               <pre data-uid="stats-content"></pre>
