@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.8.0
+ * Smooth Energy Card v2.9.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.8.0
+ * @version 2.9.0
  */
 
-const VERSION = '2.8.0';
+const VERSION = '2.9.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1714,6 +1714,8 @@ class SmoothEnergyCard extends HTMLElement {
     const shadow = this.shadowRoot;
     const card = shadow.querySelector('.card');
     if (!card) { this._render(); return; }
+    // v2.9.0: Cache latest data for dynamic particle coloring
+    this._patchData = d;
 
     const hide = new Set([
       ...(this._config.hide || []),
@@ -3921,28 +3923,59 @@ class SmoothEnergyCard extends HTMLElement {
       </div>`;
   }
 
+  // v2.9.0: Compute dynamic particle color based on energy source at spawn time
+  _dynamicParticleColor(flowId) {
+    const d = this._patchData;
+    if (!d) return '#60a5fa';
+    const solarW = d.solarW || 0;
+    const gridImpW = d.gridImpW || 0;
+    const totalIn = Math.max(solarW + gridImpW, 1);
+    const solarFrac = clamp(solarW / totalIn, 0, 1);
+    // Solar-dominant paths: lerp solar-gold (#fbbf24) ↔ grid-red (#f87171) based on grid fraction
+    if (flowId === 'pSolar') {
+      // Solar→house: fully solar when exporting too, otherwise lerp by grid fraction
+      const gridFrac = 1 - solarFrac;
+      const r = Math.round(251 * solarFrac + 248 * gridFrac);
+      const g = Math.round(191 * solarFrac + 113 * gridFrac);
+      const b = Math.round(36  * solarFrac + 113 * gridFrac);
+      return `rgb(${r},${g},${b})`;
+    }
+    if (flowId === 'pImp') return '#f87171'; // grid import: always red
+    if (flowId === 'pExp') return '#34d399'; // export: always green
+    if (flowId === 'pBatChg') return '#60a5fa'; // battery charging: blue
+    if (flowId === 'pBatDis') return '#60a5fa'; // battery discharging: blue
+    if (flowId === 'pV2g')    return '#34d399'; // V2G: green
+    if (flowId === 'pV2c') {
+      // Charger: green if solar-free, otherwise lerp
+      const chargerFreeW = d.solarFreeW || 0;
+      const chargerTotalW = Math.max(d.v2cW || 0, 1);
+      const solarChargeFrac = clamp(chargerFreeW / chargerTotalW, 0, 1);
+      const gridChargeFrac = 1 - solarChargeFrac;
+      const r = Math.round(251 * solarChargeFrac + 248 * gridChargeFrac);
+      const g = Math.round(191 * solarChargeFrac + 113 * gridChargeFrac);
+      const b = Math.round(36  * solarChargeFrac + 113 * gridChargeFrac);
+      return `rgb(${r},${g},${b})`;
+    }
+    // Device paths: lerp solar-gold ↔ grid-red by solar share
+    const r = Math.round(251 * solarFrac + 248 * (1 - solarFrac));
+    const g = Math.round(191 * solarFrac + 113 * (1 - solarFrac));
+    const b = Math.round(36  * solarFrac + 113 * (1 - solarFrac));
+    return `rgb(${r},${g},${b})`;
+  }
+
   _startParticles(shadow, d) {
     const totalW = Math.max(1, d.houseW);
     const activeDevNodes = (d.devices || []).filter(dev => dev.w > 50).slice(0, 4);
-    // Device laser color: blend solar (#fbbf24) and grid (#f87171) based on their share of house consumption
-    const solarShare = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
-    const devLaserColor = (() => {
-      // Interpolate between grid-red and solar-yellow
-      const r = Math.round(251 * solarShare + 248 * (1 - solarShare));
-      const g = Math.round(191 * solarShare + 113 * (1 - solarShare));
-      const b = Math.round(36  * solarShare + 113 * (1 - solarShare));
-      return `rgb(${r},${g},${b})`;
-    })();
     const devFlows = activeDevNodes.map((dev, i) => ({
-      id: `pDev${i}`, col: devLaserColor, w: dev.w, active: true
+      id: `pDev${i}`, col: 'auto', w: dev.w, active: true
     }));
     [
-      { id:'pSolar',  col:'#fbbf24', w:d.solarW,            active:d.solarW>20 },
-      { id:'pImp',    col:'#f87171', w:d.gridImpW,          active:d.gridImpW>20 },
-      { id:'pExp',    col:'#34d399', w:d.gridExpW,          active:d.gridExpW>20 },
-      { id: d.v2gActive ? 'pV2g' : 'pV2c', col: d.v2gActive ? '#34d399' : '#c084fc', w: Math.abs(d.v2cW), active: Math.abs(d.v2cW) > 10 },
-      { id:'pBatChg', col:'#34d399', w:d.battW,             active:d.battCharging },
-      { id:'pBatDis', col:'#34d399', w:Math.abs(d.battW),   active:d.battDischarging },
+      { id:'pSolar',  col:'auto',    w:d.solarW,            active:d.solarW>20 },
+      { id:'pImp',    col:'auto',    w:d.gridImpW,          active:d.gridImpW>20 },
+      { id:'pExp',    col:'auto',    w:d.gridExpW,          active:d.gridExpW>20 },
+      { id: d.v2gActive ? 'pV2g' : 'pV2c', col: 'auto',    w: Math.abs(d.v2cW), active: Math.abs(d.v2cW) > 10 },
+      { id:'pBatChg', col:'auto',    w:d.battW,             active:d.battCharging },
+      { id:'pBatDis', col:'auto',    w:Math.abs(d.battW),   active:d.battDischarging },
       ...devFlows,
     ].filter(f => f.active).forEach(flow => {
       const fracRel = clamp(flow.w / totalW, 0.04, 1);
@@ -3956,8 +3989,15 @@ class SmoothEnergyCard extends HTMLElement {
         const path = shadow.getElementById(flow.id);
         const cont = shadow.getElementById('particles');
         if (path && cont) {
-          this._spawnLaser(path, cont, flow.col, frac);
-          if (dual) setTimeout(() => { if (path && cont) this._spawnLaser(path, cont, flow.col, frac * 0.7); }, ms * 0.45);
+          // v2.9.0: dynamic color computed at spawn time
+          const color = flow.col === 'auto' ? this._dynamicParticleColor(flow.id) : flow.col;
+          this._spawnLaser(path, cont, color, frac);
+          if (dual) setTimeout(() => {
+            if (path && cont) {
+              const color2 = flow.col === 'auto' ? this._dynamicParticleColor(flow.id) : flow.col;
+              this._spawnLaser(path, cont, color2, frac * 0.7);
+            }
+          }, ms * 0.45);
         }
       }, ms));
     });
