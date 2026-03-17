@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.14.0
+ * Smooth Energy Card v2.15.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.14.0
+ * @version 2.15.0
  */
 
-const VERSION = '2.14.0';
+const VERSION = '2.15.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1388,6 +1388,13 @@ const CSS = `
   /* v2.14.0: EV arc smooth fill animation */
   .bat-fill { transition: stroke-dashoffset 2.5s ease-out, stroke 1s ease; }
   .bat-fill.ev-arc-init { transition: none; }
+
+  /* v2.15.0: Stat tile tap-to-expand sparkline */
+  .stat { cursor: pointer; transition: max-height 0.35s ease, box-shadow 0.2s; overflow: hidden; max-height: 80px; }
+  .stat.stat-expanded { max-height: 160px; box-shadow: 0 0 0 1px rgba(96,165,250,0.35); }
+  .stat-spark-expand { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.35s ease, opacity 0.3s ease; pointer-events: none; margin-top: 4px; }
+  .stat.stat-expanded .stat-spark-expand { max-height: 60px; opacity: 1; }
+  .stat-spark-label { font-size: 0.52em; color: #3d5280; text-align: center; margin-top: 2px; letter-spacing: 0.3px; }
 `;
 
 
@@ -2377,10 +2384,10 @@ class SmoothEnergyCard extends HTMLElement {
       costClass = d.costH < 0 ? 'st-earn' : 'st-cost';
     }
     return `
-      <div class="stat st-sol" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">${this._t('solar_today')}</div><div class="spark" data-uid="spark-solar"></div></div>
-      <div class="stat st-sol" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">${this._t('forecast')}</div></div>
-      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?this._t('exporting'):this._t('importing')}</div><div class="spark" data-uid="spark-grid"></div></div>
-      <div class="stat ${costClass}" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?this._t('earning'):costStr}</div><div class="sl">${this._t('est_cost')}</div><div class="spark" data-uid="spark-house"></div></div>`;
+      <div class="stat st-sol" data-stat-spark="solar" data-tip="Solar produced today\n${fmtKwh(d.solarToday)}"><div class="sv">${fmtKwh(d.solarToday)}</div><div class="sl">${this._t('solar_today')}</div><div class="spark" data-uid="spark-solar"></div><div class="stat-spark-expand" data-uid="spark-expand-solar"></div></div>
+      <div class="stat st-sol" data-stat-spark="forecast" data-tip="Solar forecast\nToday: ${fmtKwh(d.fcToday)}\nTomorrow: ${fmtKwh(d.fcTomorrow)}"><div class="sv">${fmtKwh(d.fcToday)}</div><div class="sl">${this._t('forecast')}</div><div class="stat-spark-expand" data-uid="spark-expand-forecast"></div></div>
+      <div class="stat ${d.isExp?'st-exp':'st-imp'}" data-stat-spark="grid" data-tip="${d.isExp?'Exporting to grid\n'+fmtW(d.gridExpW):'Importing from grid\n'+fmtW(d.gridImpW)}${d.price!=null?'\n@'+d.price.toFixed(3)+' €/kWh':''}"><div class="sv">${d.isExp?'↑ '+fmtW(d.gridExpW):'↓ '+fmtW(d.gridImpW)}</div><div class="sl">${d.isExp?this._t('exporting'):this._t('importing')}</div><div class="spark" data-uid="spark-grid"></div><div class="stat-spark-expand" data-uid="spark-expand-grid"></div></div>
+      <div class="stat ${costClass}" data-stat-spark="house" data-tip="Estimated cost\nGrid import: ${fmtW(d.gridImpW)}\nGrid export: ${fmtW(d.gridExpW)}\nNet: ${d.costH!=null?fmtEur(d.costH)+'/h':'—'}"><div class="sv">${d.costH!=null&&d.costH<0?this._t('earning'):costStr}</div><div class="sl">${this._t('est_cost')}</div><div class="spark" data-uid="spark-house"></div><div class="stat-spark-expand" data-uid="spark-expand-house"></div></div>`;
   }
 
   _buildForecast(d) {
@@ -4659,6 +4666,39 @@ class SmoothEnergyCard extends HTMLElement {
           this._hass.callService(dom, svc, a.entity ? {entity_id:a.entity,...(a.data||{})} : (a.data||{}));
           qaBtn.classList.add('qa-fired');
           setTimeout(()=>qaBtn.classList.remove('qa-fired'), 600);
+        }
+      });
+    });
+
+    // v2.15.0: Stat tile tap-to-expand sparkline
+    shadow.querySelectorAll('.stat[data-stat-spark]').forEach(tile => {
+      tile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sparkKey = tile.getAttribute('data-stat-spark');
+        const wasExpanded = tile.classList.contains('stat-expanded');
+        // Collapse all tiles first
+        shadow.querySelectorAll('.stat[data-stat-spark]').forEach(t => t.classList.remove('stat-expanded'));
+        if (!wasExpanded) {
+          tile.classList.add('stat-expanded');
+          // Populate the expand sparkline if we have data
+          const expandEl = tile.querySelector('.stat-spark-expand');
+          if (expandEl && this._sparkData) {
+            const entityMap = {
+              solar: this._config.solar_power,
+              forecast: this._config.solar_power,
+              grid: this._config.grid_power,
+              house: this._config.house_power,
+            };
+            const colorMap = { solar:'#fbbf24', forecast:'#fbbf24', grid:'#f87171', house:'#60a5fa' };
+            const entity = entityMap[sparkKey];
+            const pts = entity && this._sparkData[entity];
+            if (pts && pts.length >= 2) {
+              expandEl.innerHTML = this._buildSparkSvg(pts, colorMap[sparkKey] || '#60a5fa', 70, 38) +
+                `<div class="stat-spark-label">6h history</div>`;
+            } else {
+              expandEl.innerHTML = `<div class="stat-spark-label" style="opacity:0.5">No history data</div>`;
+            }
+          }
         }
       });
     });
