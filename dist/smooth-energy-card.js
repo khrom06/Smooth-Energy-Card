@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.17.0
+ * Smooth Energy Card v2.18.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.17.0
+ * @version 2.18.0
  */
 
-const VERSION = '2.17.0';
+const VERSION = '2.18.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1388,6 +1388,9 @@ const CSS = `
   /* v2.14.0: EV arc smooth fill animation */
   .bat-fill { transition: stroke-dashoffset 2.5s ease-out, stroke 1s ease; }
   .bat-fill.ev-arc-init { transition: none; }
+
+  /* v2.18.0: SVG orb size transitions */
+  .flow-svg circle { transition: r 1.5s ease-out; }
 
   /* v2.17.0: Collapsible sections */
   .sec-hdr { cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between; }
@@ -3359,6 +3362,12 @@ class SmoothEnergyCard extends HTMLElement {
     // Device laser color: blend solar-yellow ↔ grid-red by solar share
     const solarShareSvg = clamp(d.solarW / Math.max(1, d.houseW), 0, 1);
     const devCol = `rgb(${Math.round(251*solarShareSvg+248*(1-solarShareSvg))},${Math.round(191*solarShareSvg+113*(1-solarShareSvg))},${Math.round(36*solarShareSvg+113*(1-solarShareSvg))})`;
+    // v2.18.0: Scaled orb radii based on live wattage
+    const Rs  = this._orbR(R,  d.solarW);
+    const Rh  = this._orbR(R,  d.houseW);
+    const Rg  = this._orbR(R,  Math.abs(d.gridW));
+    const Rvc = this._orbR(Rv, Math.abs(d.v2cW));
+    const Rb2 = this._orbR(Rb, Math.abs(d.battW));
     // Device node positions: evenly spread across x=[32,328] at y=Drow
     // When V2C charger node is visible, nudge any device that would overlap it (x≈180)
     const devPositions = activeDevNodes.map((dev, i) => {
@@ -3511,7 +3520,7 @@ class SmoothEnergyCard extends HTMLElement {
         const lg = pct > 0.5 ? 1 : 0;
         return `<path class="day-progress-arc" d="M${x1},${y1} A${Rarc},${Rarc} 0 ${lg},1 ${x2},${y2}" filter="drop-shadow(0 0 3px #fbbf24)"/>`;
       })()}
-      <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="url(#${sOn?'orb-sol':sun===null?'orb-sol-night':'orb-sol-off'})" stroke="${sOn?'#fbbf24':sun===null?'#4338ca':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" class="${sun===null?'solar-night':''}" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
+      <circle id="node-solar" cx="${sP.x}" cy="${sP.y}" r="${Rs}" fill="url(#${sOn?'orb-sol':sun===null?'orb-sol-night':'orb-sol-off'})" stroke="${sOn?'#fbbf24':sun===null?'#4338ca':'#2a2008'}" stroke-width="1.5" data-uid="solar-orb" class="${sun===null?'solar-night':''}" style="cursor:${this._config.weather_entity?'pointer':'default'}"/>
       <circle cx="${sP.x}" cy="${sP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${sP.x-R*0.28}" cy="${sP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="${sOn?'0.35':sun===null?'0.15':'0.08'}"/>
       <text x="${sP.x}" y="${sP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="${sOn?'#fbbf24':sun===null?'#c7d2fe':'#2a3558'}" pointer-events="none">${d.weatherCondition&&this._config.weather_entity?weatherIcon(d.weatherCondition):sun===null?'🌙':'☀️'}</text>
@@ -3527,7 +3536,7 @@ class SmoothEnergyCard extends HTMLElement {
         const op  = w > 3000 ? 0.55 : w > 1500 ? 0.38 : w > 500 ? 0.22 : 0.13;
         return `<circle cx="${hP.x}" cy="${hP.y}" r="${R+8}" class="house-hb-ring" style="stroke:${col};--hb-dur:${dur}s;--hb-op:${op}"/>`;
       })()}
-      <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5" data-uid="house-orb" style="cursor:pointer"/>
+      <circle id="node-house" cx="${hP.x}" cy="${hP.y}" r="${Rh}" fill="url(#orb-house)" stroke="#60a5fa" stroke-width="1.5" data-uid="house-orb" style="cursor:pointer"/>
       <circle cx="${hP.x}" cy="${hP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${hP.x-R*0.28}" cy="${hP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.3"/>
       <text x="${hP.x}" y="${hP.y-14}" font-size="20" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa">🏠</text>
@@ -3535,7 +3544,7 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${hP.x}" y="${hP.y+20}" class="n-name">${this._t('house')}</text>
       <g data-uid="orb-spark-house" clip-path="url(#clip-house)" opacity="0.55"></g>
       ${d.gridImpW>2000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+4}" class="grid-stress-ring"/>`:d.gridImpW>1000?`<circle cx="${gP.x}" cy="${gP.y}" r="${R+3}" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.4"/>`:''}
-      <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5" data-uid="grid-orb" style="cursor:pointer"/>
+      <circle id="node-grid" cx="${gP.x}" cy="${gP.y}" r="${Rg}" fill="url(#${d.isExp?'orb-grid-exp':'orb-grid-imp'})" stroke="${d.isExp?'#34d399':'#f87171'}" stroke-width="1.5" data-uid="grid-orb" style="cursor:pointer"/>
       <circle cx="${gP.x}" cy="${gP.y}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" class="orb-glass-rim"/>
       <circle cx="${gP.x-R*0.28}" cy="${gP.y-R*0.28}" r="${R*0.18}" fill="white" opacity="0.28"/>
       <text x="${gP.x}" y="${gP.y-14}" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="${d.isExp?'#34d399':'#f87171'}">${d.isExp?'↑':'↓'}🔌</text>
@@ -3543,8 +3552,8 @@ class SmoothEnergyCard extends HTMLElement {
       <text x="${gP.x}" y="${gP.y+20}" class="n-name">${d.isExp?this._t('export'):this._t('import')}</text>
       <g data-uid="orb-spark-grid" clip-path="url(#clip-grid)" opacity="0.55"></g>
       ${hasV2c ? `
-      ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rv}"/>`:''}
-      <circle cx="${vP.x}" cy="${vP.y}" r="${Rv}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
+      ${vOn?`<circle class="v2c-ring-pulse" cx="${vP.x}" cy="${vP.y}" r="${Rvc}"/>`:''}
+      <circle id="node-v2c" cx="${vP.x}" cy="${vP.y}" r="${Rvc}" fill="url(#${vOn?(d.v2gActive?'orb-bat':'orb-v2c'):'orb-v2c-off'})" stroke="${vOn?(d.v2gActive?'#34d399':'#c084fc'):'#2a1a5a'}" stroke-width="1.5"/>
       <circle cx="${vP.x-Rv*0.28}" cy="${vP.y-Rv*0.28}" r="${Rv*0.2}" fill="white" opacity="${vOn?'0.3':'0.07'}"/>
       ${d.v2gActive
         ? `<text x="${vP.x}" y="${vP.y-3}" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#34d399" class="v2c-bolt-active">⚡</text>
@@ -3561,7 +3570,7 @@ class SmoothEnergyCard extends HTMLElement {
         ${d.battCharging    ? `<path id="pBatChg" class="track" style="stroke:url(#trk-batt)" d="${bChgPth}"/>` : ''}
         ${d.battDischarging ? `<path id="pBatDis" class="track" style="stroke:url(#trk-batt)" d="${bDisPth}"/>` : ''}
         ${(d.battCharging||d.battDischarging) ? `<circle cx="${bP.x}" cy="${bP.y}" r="${Rb+16}" fill="url(#glow-b)"/>` : ''}
-        <circle cx="${bP.x}" cy="${bP.y}" r="${Rb}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5" class="${d.battCharging?'batt-charging':d.battDischarging?'batt-discharging':''}"/>
+        <circle id="node-battery" cx="${bP.x}" cy="${bP.y}" r="${Rb2}" fill="url(#${(d.battCharging||d.battDischarging)?'orb-bat':'orb-bat-off'})" stroke="${(d.battCharging||d.battDischarging)?'#34d399':'#0a2a1a'}" stroke-width="1.5" class="${d.battCharging?'batt-charging':d.battDischarging?'batt-discharging':''}"/>
         ${(() => {
           // WOW: Battery water fill — SOC level shown as animated wave fill
           const soc = d.battSoc != null ? clamp(d.battSoc, 0, 100) : 0;
@@ -4345,6 +4354,12 @@ class SmoothEnergyCard extends HTMLElement {
   // clamp watts 0–6000, map to 800ms (0W) → 80ms (6000W).
   _particleInterval(watts) {
     return Math.max(80, Math.round(800 - (clamp(watts, 0, 6000) / 6000) * 720));
+  }
+
+  // v2.18.0: Returns scaled orb radius based on wattage.
+  // Scales baseR from 75% (0W) to 120% (maxW+). Max 20% growth.
+  _orbR(baseR, watts, maxW = 5000) {
+    return parseFloat((baseR * (0.75 + 0.45 * Math.min(Math.abs(watts), maxW) / maxW)).toFixed(1));
   }
 
   _startParticles(shadow, d) {
