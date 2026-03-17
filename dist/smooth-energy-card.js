@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.9.0
+ * Smooth Energy Card v2.9.1
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.9.0
+ * @version 2.9.1
  */
 
-const VERSION = '2.9.0';
+const VERSION = '2.9.1';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1217,6 +1217,12 @@ const CSS = `
   .export-streak{margin:2px 12px 4px;padding:6px 12px;border-radius:10px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);font-size:0.78em;color:#6ee7b7;font-weight:600}
   .streak-best{background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);color:#fcd34d;animation:streak-pulse 2s ease-in-out infinite}
   @keyframes streak-pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+
+  /* ── v2.9.1: Solar sunrise wipe animation ── */
+  @keyframes sunrise-sweep { from { transform: translateX(-90px) } to { transform: translateX(90px) } }
+  .sunrise-wipe { animation: sunrise-sweep 1.2s ease-in-out forwards; }
+  @keyframes sunrise-bloom { 0%{filter:brightness(1)} 30%{filter:brightness(1.9) drop-shadow(0 0 12px #fbbf24)} 100%{filter:brightness(1)} }
+  .sunrise-bloom { animation: sunrise-bloom 1.4s ease-out forwards; }
 `;
 
 
@@ -1753,6 +1759,23 @@ class SmoothEnergyCard extends HTMLElement {
 
     // WOW: time-of-day sky gradient
     this._updateSkyGradient(card);
+
+    // v2.9.1: Sunrise wipe animation — fire once per day when solar first turns positive
+    const today = new Date().toISOString().slice(0, 10);
+    // Reset flag on new day
+    if (this._sunriseAnimDay && this._sunriseAnimDay !== today) {
+      this._sunriseAnimPlayed = false;
+    }
+    this._sunriseAnimDay = today;
+    if (!this._sunriseAnimPlayed) {
+      try {
+        const lastDate = localStorage.getItem('sec-sunrise-date');
+        if (lastDate === today) this._sunriseAnimPlayed = true;
+      } catch(e) {}
+    }
+    if (d.solarW > 20 && !this._sunriseAnimPlayed) {
+      this._playSunriseWipe();
+    }
 
     // Feature: update in-memory power buffer for stacked chart
     this._updatePowerBuffer(d);
@@ -3961,6 +3984,57 @@ class SmoothEnergyCard extends HTMLElement {
     const g = Math.round(191 * solarFrac + 113 * (1 - solarFrac));
     const b = Math.round(36  * solarFrac + 113 * (1 - solarFrac));
     return `rgb(${r},${g},${b})`;
+  }
+
+  // v2.9.1: Play sunrise wipe animation once per day when solar first becomes active
+  _playSunriseWipe() {
+    const shadow = this.shadowRoot;
+    if (!shadow) return;
+    this._sunriseAnimPlayed = true;
+    // Save today's date
+    try { localStorage.setItem('sec-sunrise-date', new Date().toISOString().slice(0, 10)); } catch(e) {}
+    // Find the solar orb SVG element
+    const solarOrb = shadow.querySelector('[data-uid="solar-orb"]');
+    if (!solarOrb) return;
+    // Get the circle element inside the solar orb group
+    const svgEl = shadow.querySelector('.flow-svg');
+    if (!svgEl) return;
+    // Create clipPath and animated rect for wipe effect
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const defs = svgEl.querySelector('defs') || (() => {
+      const d2 = document.createElementNS(svgNS, 'defs');
+      svgEl.insertBefore(d2, svgEl.firstChild);
+      return d2;
+    })();
+    const clipId = 'sunrise-clip-' + Date.now();
+    const clipPath = document.createElementNS(svgNS, 'clipPath');
+    clipPath.id = clipId;
+    const clipRect = document.createElementNS(svgNS, 'rect');
+    clipRect.setAttribute('x', '-90');
+    clipRect.setAttribute('y', '0');
+    clipRect.setAttribute('width', '88');
+    clipRect.setAttribute('height', '210');
+    clipRect.classList.add('sunrise-wipe');
+    clipPath.appendChild(clipRect);
+    defs.appendChild(clipPath);
+    // Create the golden sweep overlay rect on solar orb
+    const sP = { x: 58, y: 62, r: 44 };
+    const sweepRect = document.createElementNS(svgNS, 'rect');
+    sweepRect.setAttribute('x', String(sP.x - sP.r));
+    sweepRect.setAttribute('y', String(sP.y - sP.r));
+    sweepRect.setAttribute('width', String(sP.r * 2));
+    sweepRect.setAttribute('height', String(sP.r * 2));
+    sweepRect.setAttribute('fill', 'rgba(251,191,36,0.4)');
+    sweepRect.setAttribute('clip-path', `url(#${clipId})`);
+    sweepRect.setAttribute('rx', String(sP.r));
+    svgEl.appendChild(sweepRect);
+    // Apply bloom to solar orb
+    if (solarOrb) solarOrb.classList.add('sunrise-bloom');
+    // Cleanup after animation
+    setTimeout(() => {
+      try { clipPath.remove(); sweepRect.remove(); } catch(e) {}
+      if (solarOrb) solarOrb.classList.remove('sunrise-bloom');
+    }, 1500);
   }
 
   _startParticles(shadow, d) {
