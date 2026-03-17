@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.13.0
+ * Smooth Energy Card v2.14.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.13.0
+ * @version 2.14.0
  */
 
-const VERSION = '2.13.0';
+const VERSION = '2.14.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1384,6 +1384,10 @@ const CSS = `
   /* ── Skin: Aurora extras ── */
   :host([data-skin="aurora"]) .card { backdrop-filter: var(--c-backdrop); }
   :host([data-skin="aurora"]) .section-title { text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; }
+
+  /* v2.14.0: EV arc smooth fill animation */
+  .bat-fill { transition: stroke-dashoffset 2.5s ease-out, stroke 1s ease; }
+  .bat-fill.ev-arc-init { transition: none; }
 `;
 
 
@@ -1872,6 +1876,16 @@ class SmoothEnergyCard extends HTMLElement {
       this._updateSkyGradient(card);
       // Draw cable after layout is painted
       requestAnimationFrame(() => requestAnimationFrame(() => this._drawChargingCable(shadow, d)));
+      // v2.14.0: EV arc fill-in animation — start at empty, ease to real value
+      setTimeout(() => {
+        shadow.querySelectorAll('.bat-fill.ev-arc-init').forEach(arc => {
+          const target = arc.getAttribute('data-target-offset');
+          if (target != null) {
+            arc.classList.remove('ev-arc-init'); // re-enable transition
+            arc.setAttribute('stroke-dashoffset', target);
+          }
+        });
+      }, 120);
       this._domReady = true;
       this._applySkinVars();
       requestAnimationFrame(() => this._setupTapHandlers(shadow));
@@ -3687,7 +3701,7 @@ class SmoothEnergyCard extends HTMLElement {
         <div class="bat-ring" data-tip="${batTip}">
           <svg viewBox="0 0 56 56">
             <circle class="bat-bg" cx="28" cy="28" r="${r}"/>
-            <circle class="bat-fill" cx="28" cy="28" r="${r}" stroke="${ev.isCharging?'#34d399':col}" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
+            <circle class="bat-fill ev-arc-init" cx="28" cy="28" r="${r}" stroke="${ev.isCharging?'#34d399':col}" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${circ.toFixed(2)}" data-target-offset="${offset.toFixed(2)}"/>
             ${targetArc}
             ${ev.isCharging?`<circle cx="28" cy="28" r="${r}" fill="none" stroke="#6ee7b7" stroke-width="2.5" stroke-dasharray="10 ${(circ-10).toFixed(2)}" class="eta-ring-spin" opacity="0.75"/>`:''}
             ${ev.isCharging?`<circle cx="28" cy="28" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`:''}
