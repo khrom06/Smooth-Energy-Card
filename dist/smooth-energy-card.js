@@ -1,12 +1,12 @@
 /**
- * Smooth Energy Card v2.15.0
+ * Smooth Energy Card v2.16.0
  * A beautiful animated energy monitoring card for Home Assistant.
  *
  * @license MIT
- * @version 2.15.0
+ * @version 2.16.0
  */
 
-const VERSION = '2.15.0';
+const VERSION = '2.16.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -1389,6 +1389,10 @@ const CSS = `
   .bat-fill { transition: stroke-dashoffset 2.5s ease-out, stroke 1s ease; }
   .bat-fill.ev-arc-init { transition: none; }
 
+  /* v2.16.0: Ambient color saturation by self-sufficiency */
+  :host { transition: --ambient-hue 4s ease, --ambient-sat 4s ease; }
+  .card-hud { position:absolute; top:0; left:0; right:0; height:120px; pointer-events:none; border-radius:var(--c-card-radius, 20px) var(--c-card-radius, 20px) 0 0; background:linear-gradient(180deg, hsla(var(--ambient-hue,220), var(--ambient-sat,5%), 60%, 0.07) 0%, transparent 100%); transition:background 4s ease; z-index:0; }
+
   /* v2.15.0: Stat tile tap-to-expand sparkline */
   .stat { cursor: pointer; transition: max-height 0.35s ease, box-shadow 0.2s; overflow: hidden; max-height: 80px; }
   .stat.stat-expanded { max-height: 160px; box-shadow: 0 0 0 1px rgba(96,165,250,0.35); }
@@ -1945,6 +1949,9 @@ class SmoothEnergyCard extends HTMLElement {
 
     // WOW: time-of-day sky gradient
     this._updateSkyGradient(card);
+
+    // v2.16.0: Ambient color saturation by self-sufficiency
+    this._updateAmbientColor(d);
 
     // v2.9.1: Sunrise wipe animation — fire once per day when solar first turns positive
     const today = new Date().toISOString().slice(0, 10);
@@ -4456,6 +4463,20 @@ class SmoothEnergyCard extends HTMLElement {
     solarOrb.addEventListener('mouseleave', hideWp);
     weatherPopup.addEventListener('mouseenter', () => clearTimeout(wpHideTimer));
     weatherPopup.addEventListener('mouseleave', hideWp);
+  }
+
+  // v2.16.0: Update card ambient color overlay based on self-sufficiency
+  _updateAmbientColor(d) {
+    const selfSuff = clamp(d.solarW / Math.max(d.houseW, 1), 0, 1.5);
+    // selfSuff=0 (full import): hue=240 (blue), sat=8%
+    // selfSuff=0.5: hue=200, sat=5% (neutral)
+    // selfSuff>=1 (full solar): hue=140 (green), sat=12%
+    const hue = Math.round(240 - clamp(selfSuff, 0, 1) * 100);
+    const sat = selfSuff < 0.5
+      ? Math.round(8 - (selfSuff * 2) * 3)          // 8% → 5%
+      : Math.round(5 + (selfSuff - 0.5) * 2 * 7);   // 5% → 12%
+    this.style.setProperty('--ambient-hue', hue);
+    this.style.setProperty('--ambient-sat', sat + '%');
   }
 
   // v2.10.1: Spawn a CSS ripple circle at the click position within a target element
