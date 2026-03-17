@@ -6,7 +6,7 @@
  * @version 2.10.1
  */
 
-const VERSION = '2.10.1';
+const VERSION = '2.11.0';
 
 // ─── Translations ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -298,6 +298,13 @@ function fmtW(w) {
   const abs = Math.abs(w);
   if (abs >= 1000) return (w / 1000).toFixed(2) + ' kW';
   return Math.round(w) + ' W';
+}
+// Returns CSS class tier based on watt value for power-proportional bubble sizing
+function powClass(w) {
+  if (!w || w < 50) return '';
+  if (w < 300)  return 'pow-sm';
+  if (w < 1500) return 'pow-md';
+  return 'pow-lg';
 }
 function fmtKwh(v) {
   if (v == null || isNaN(v) || v === 0) return '—';
@@ -1084,6 +1091,25 @@ const CSS = `
 
   /* ── Feature: DEVICE ANOMALY ── */
   .device.anomaly { box-shadow:0 0 0 2px rgba(248,113,113,0.4); }
+
+  /* ── Power-proportional tile sizing ──────────────────────────────────── */
+  /* Devices */
+  .device.pow-sm { flex:1 1 92px; max-width:134px; }
+  .device.pow-md { flex:1 1 112px; max-width:154px; padding:10px 8px; }
+  .device.pow-md .dev-icon { transform:scale(1.18); transform-origin:center; }
+  .device.pow-md .dev-power { font-size:0.85em; font-weight:800; }
+  .device.pow-lg { flex:1 1 134px; max-width:176px; padding:13px 10px; box-shadow:0 0 16px rgba(251,191,36,0.14); }
+  .device.pow-lg .dev-icon { transform:scale(1.38); transform-origin:center; }
+  .device.pow-lg .dev-power { font-size:0.95em; font-weight:800; color:#fbbf24 !important; }
+  .device.pow-lg .dev-name  { font-size:0.78em; font-weight:700; }
+  /* EV cards */
+  .ev-card.pow-sm { flex:1 1 120px; max-width:188px; }
+  .ev-card.pow-md { flex:1 1 138px; max-width:204px; }
+  .ev-card.pow-lg { flex:1 1 158px; max-width:226px; box-shadow:0 0 20px rgba(192,132,252,0.22); }
+  /* Charger cards */
+  .ev-charger.pow-sm { flex:1 1 120px; max-width:188px; }
+  .ev-charger.pow-md { flex:1 1 140px; max-width:208px; }
+  .ev-charger.pow-lg { flex:1 1 162px; max-width:232px; box-shadow:0 0 22px rgba(192,132,252,0.28); }
   .dev-anomaly-dot { width:7px; height:7px; background:#f87171; border-radius:50%; position:absolute; top:2px; right:2px; animation:dep-pulse 1.2s ease-in-out infinite; }
 
   /* ── Feature: STACKED AREA POWER CHART ── */
@@ -3510,8 +3536,9 @@ class SmoothEnergyCard extends HTMLElement {
     const uidAttr = (charger.isLegacy && idx === 0) ? ' data-uid="charger-legacy"' : '';
     const tipAttr = active ? '' : `data-tip="${charger.name}\nIdle — no vehicle connected"`;
     const dataChIdx = !charger.isLegacy ? ` data-extra-charger="${idx}"` : '';
+    const chPc = active ? powClass(charger.powerW) : '';
     return `
-      <div class="ev-card ev-charger${active?' plugged':''}"${uidAttr}${dataChIdx} ${tipAttr}>
+      <div class="ev-card ev-charger${active?' plugged':''}${chPc?' '+chPc:''}"${uidAttr}${dataChIdx} ${tipAttr}>
         <div class="ev-name">${isV2g ? charger.name + ' ▲ V2G' : charger.name}</div>
         ${img}
         <div data-uid="${charger.isLegacy && idx===0 ? 'charger-content' : 'charger-content-'+idx}">
@@ -3555,7 +3582,7 @@ class SmoothEnergyCard extends HTMLElement {
       + (ev.isCharging ? '\n' + this._t('charging_via') : '');
 
     return `
-      <div class="ev-card ${theme.cls}${ev.isCharging?' ev-is-charging':''}">
+      <div class="ev-card ${theme.cls}${ev.isCharging?' ev-is-charging':''}${ev.isCharging&&ev.chargingW?(' '+powClass(ev.chargingW)):''}" >
         <div class="ev-name">${ev.name}${ev.isCharging?' ⚡':''}</div>
         ${imgEl}
         <div class="bat-ring" data-tip="${batTip}">
@@ -3597,7 +3624,8 @@ class SmoothEnergyCard extends HTMLElement {
       : `<div class="dev-expand-info">${dev.entity || ''}</div>`;
     const isAnomaly = dev.entity && this._anomalyFlags && this._anomalyFlags.has(dev.entity);
     const anomalyTip = isAnomaly ? '\n⚠️ Using significantly more than usual' : '';
-    return `<div class="device${on?' on':''}${isAlert?' alert':''}${isExpanded?' expanded':''}${isAnomaly?' anomaly':''}" data-dev-entity="${dev.entity||''}" data-tip="${tip}${anomalyTip}" style="position:relative">
+    const pc = on ? powClass(dev.w) : '';
+    return `<div class="device${on?' on':''}${isAlert?' alert':''}${isExpanded?' expanded':''}${isAnomaly?' anomaly':''}${pc?' '+pc:''}" data-dev-entity="${dev.entity||''}" data-tip="${tip}${anomalyTip}" style="position:relative">
       ${rankHtml}<div class="dev-icon ${on?'on':'off'}">${icon}</div><div class="dev-name">${dev.name}</div><div class="dev-power">${fmtW(dev.w)}</div>
       ${isAnomaly ? '<div class="dev-anomaly-dot" title="Unusual consumption"></div>' : ''}
       <div class="dev-expand">${sparkHtml}</div>
@@ -5024,9 +5052,35 @@ class SmoothEnergyCardEditor extends HTMLElement {
             </div>
             <div class="row cols-1">
               <div class="field">
-                <label>Hidden sections <span style="color:#aaa;font-weight:normal">(comma-separated)</span></label>
-                <input type="text" data-key-list="hide" value="${(c.hide||[]).join(', ')}" placeholder="e.g. forecast, eco_badges, event_log">
-                <span class="hint">Available: ev, devices, forecast, gauge, surplus, tempo, reco, budget, power_chart, price_chart, eco_badges, ev_optimizer, dev_scheduler, grid_alerts, savings, yday_chips, records, event_log, co2</span>
+                <label>Hidden sections <span style="color:#aaa;font-weight:normal">— toggle to hide</span></label>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:4px 10px;margin-top:6px">
+                  ${[
+                    ['📊 Weekly Heatmap','heatmap'],
+                    ['🏅 Personal Records','records'],
+                    ['📋 Event Log','event_log'],
+                    ['☀️ Savings Counter','savings'],
+                    ['📅 Yesterday Chips','yday_chips'],
+                    ['🌿 CO₂ Banner','co2'],
+                    ['🌞 EV Optimizer','ev_optimizer'],
+                    ['🏠 Device Scheduler','dev_scheduler'],
+                    ['⚡ Grid Alerts','grid_alerts'],
+                    ['💶 Price Chart','price_chart'],
+                    ['📈 Power Chart','power_chart'],
+                    ['💰 Budget Tracker','budget'],
+                    ['🌤️ Forecast','forecast'],
+                    ['🕐 Tempo Banner','tempo'],
+                    ['💡 Self-sufficiency','gauge'],
+                    ['☀️ Surplus Banner','surplus'],
+                    ['🚗 Reco Banner','reco'],
+                    ['🏷️ Eco Badges','eco_badges'],
+                  ].map(([lbl,key]) => {
+                    const checked = (c.hide||[]).includes(key) ? 'checked' : '';
+                    return `<label style="display:flex;align-items:center;gap:6px;font-size:0.82em;cursor:pointer;padding:3px 0">
+                      <input type="checkbox" data-hide-key="${key}" ${checked} style="width:14px;height:14px;cursor:pointer;accent-color:#6366f1">
+                      <span>${lbl}</span>
+                    </label>`;
+                  }).join('')}
+                </div>
               </div>
             </div>
           </div>
@@ -5483,6 +5537,15 @@ class SmoothEnergyCardEditor extends HTMLElement {
         const val = el.value.split(',').map(s => s.trim()).filter(Boolean);
         this._set(el.dataset.keyList, val);
       });
+    });
+
+    // Hide-section checkboxes — each checkbox toggles its key in config.hide[]
+    const _syncHideCheckboxes = () => {
+      const checked = Array.from(sr.querySelectorAll('input[data-hide-key]:checked')).map(el => el.dataset.hideKey);
+      this._set('hide', checked);
+    };
+    sr.querySelectorAll('input[data-hide-key]').forEach(el => {
+      el.addEventListener('change', _syncHideCheckboxes);
     });
 
     // Quick-action inputs
